@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { generateText, Output } from "ai";
-import { google } from "@ai-sdk/google";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { enrichPrediction, severityToNumber } from "@/lib/diseases";
 import { getGeminiApiKey, isGeminiConfigured } from "@/lib/runtime-config";
 import {
@@ -76,6 +76,7 @@ async function predictWithPython(imageFile: File) {
 }
 
 async function predictWithGemini(imageBuffer: Buffer, selectedCategory: string): Promise<CropScanResult> {
+  const google = createGoogleGenerativeAI({ apiKey: getGeminiApiKey() });
   const run = async (modelId: string) => {
     const result = await generateText({
       model: google(modelId),

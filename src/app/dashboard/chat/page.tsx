@@ -29,9 +29,20 @@ const SCAN_SUGGESTIONS = [
 
 function farmerFacingText(text: string) {
   if (/API[_ ]?key not valid|API_KEY_INVALID|GOOGLE_GENERATIVE_AI|GEMINI_API_KEY/i.test(text)) {
-    return "Ask AI is not available yet. Add a Gemini key and restart the app.";
+    return "The Gemini API key is not valid. Put a real key in .env.local, then run pnpm dev:clean.";
   }
   return text;
+}
+
+function chatErrorMessage(error: unknown) {
+  const raw = error instanceof Error ? error.message : String(error || "");
+  try {
+    const parsed = JSON.parse(raw) as { error?: string };
+    if (parsed?.error) return farmerFacingText(parsed.error);
+  } catch {
+    // The transport may send plain text.
+  }
+  return farmerFacingText(raw) || "Could not get an answer. Check your connection, Gemini key, and try again.";
 }
 
 function scanLabel(scan: Record<string, unknown> | null | undefined) {
@@ -58,6 +69,15 @@ function ChatPageInner() {
   scanIdRef.current = scanId;
 
   const scansQuery = useQuery(orpc.scans.list.queryOptions());
+  const healthQuery = useQuery({
+    queryKey: ["setup-health"],
+    queryFn: async () => {
+      const response = await fetch("/api/health");
+      if (!response.ok) throw new Error("Could not load setup status");
+      return response.json() as Promise<{ gemini: { configured: boolean } }>;
+    },
+  });
+  const geminiReady = healthQuery.data?.gemini.configured !== false;
   const scans = (scansQuery.data ?? []) as Array<Record<string, unknown>>;
   const selectedScan = scans.find((scan) => scan.id === scanId) ?? null;
 
@@ -96,7 +116,7 @@ function ChatPageInner() {
 
   const ask = (text: string) => {
     const question = text.trim();
-    if (!question || isBusy) return;
+    if (!question || isBusy || !geminiReady) return;
     sendMessage({ text: question });
     setInput("");
     inputRef.current?.focus();
@@ -144,6 +164,12 @@ function ChatPageInner() {
           </Button>
         )}
       </div>
+
+      {healthQuery.data && !healthQuery.data.gemini.configured && (
+        <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+          Gemini is not ready yet. Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local, then stop the server and run pnpm dev:clean.
+        </div>
+      )}
 
       {scan ? (
         <div className="mb-3 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/40">
@@ -194,7 +220,7 @@ function ChatPageInner() {
                 <button
                   key={suggestion}
                   type="button"
-                  disabled={isBusy}
+                  disabled={isBusy || !geminiReady}
                   onClick={() => ask(suggestion)}
                   className="text-left rounded-2xl border px-4 py-3 text-sm hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
                 >
@@ -244,7 +270,7 @@ function ChatPageInner() {
             )}
             {error && (
               <p className="text-sm text-destructive px-1">
-                Could not get an answer. Check your connection, Gemini key, and try again.
+                {chatErrorMessage(error)}
               </p>
             )}
             <div ref={messagesEndRef} />
@@ -261,13 +287,13 @@ function ChatPageInner() {
             placeholder={scan ? `Ask about ${scanLabel(scan)}` : "Type your question"}
             aria-label="Ask a crop health question"
             className="flex-1 h-11 bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
-            disabled={isBusy}
+            disabled={isBusy || !geminiReady}
           />
           <Button
             type="submit"
             size="icon"
             className="size-10 rounded-full"
-            disabled={isBusy || !input.trim()}
+            disabled={isBusy || !geminiReady || !input.trim()}
             aria-label="Send"
           >
             {isBusy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
