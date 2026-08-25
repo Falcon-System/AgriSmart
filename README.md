@@ -100,25 +100,22 @@ If `MONGODB_URI` is not set or MongoDB is unreachable, the app falls back to an 
 | NEXT_PUBLIC_BACKEND_URL | Base URL for the Python prediction backend | No |
 | PREDICTION_API_URL | Full predict endpoint, e.g. `http://localhost:8000/predict` | No |
 
-### Running the Python Backend
+### Running the Python prediction server
 
-The AI prediction functionality requires a separate Python backend server:
+The original trained model is no longer in GitHub. This repo now includes a real 5-class cassava classifier at `prediction-service/` (ResNet50, CBB / CBSD / CGM / CMD / Healthy).
 
-1. Navigate to your Python backend directory
-2. Install Python dependencies:
 ```bash
-pip install -r requirements.txt
+python3 -m venv prediction-service/.venv
+prediction-service/.venv/bin/pip install --upgrade pip
+prediction-service/.venv/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+prediction-service/.venv/bin/pip install -r prediction-service/requirements.txt
+pnpm predict:server
 ```
 
-3. Start the Python server:
-```bash
-python -m uvicorn main:app --reload --port 8000
-```
+Point Next.js at it in `.env.local`:
 
-If the real model server is not available yet, run a local stand-in:
-
-```bash
-node scripts/mock-predict-server.mjs
+```env
+PREDICTION_API_URL="http://localhost:8000/predict"
 ```
 
 ## 🚀 Development Workflow
@@ -251,7 +248,7 @@ This project is licensed under the MIT License.
 
 #### 3. Prediction Service Unavailable
 - **Issue**: "Prediction service is currently unavailable"
-- **Solution**: Ensure your Python backend server is running on `http://localhost:8000`
+- **Solution**: Start the in-repo classifier with `pnpm predict:server` and confirm `PREDICTION_API_URL=http://localhost:8000/predict`
 
 ---
 

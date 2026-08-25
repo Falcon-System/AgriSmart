@@ -23,11 +23,11 @@ async function predictWithPython(imageFile: File) {
   const formData = new FormData();
   formData.append("file", imageFile);
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    body: formData,
-    signal: AbortSignal.timeout(8000),
-  });
+    const response = await fetch(endpoint, {
+      method: "POST",
+      body: formData,
+      signal: AbortSignal.timeout(30000),
+    });
 
   if (!response.ok) {
     let errorMessage = `Backend Error: ${response.status} ${response.statusText}`;

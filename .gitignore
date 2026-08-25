@@ -61,3 +61,6 @@ dev-dist
 .devtools
 
 /src/generated/prisma
+
+# Python prediction service
+prediction-service/.venv/

@@ -6,7 +6,7 @@
     "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start",
-    "predict:mock": "node scripts/mock-predict-server.mjs"
+    "predict:server": "prediction-service/.venv/bin/uvicorn --app-dir prediction-service main:app --host 127.0.0.1 --port 8000"
   },
   "dependencies": {
     "@ai-sdk/devtools": "^0.0.2",
