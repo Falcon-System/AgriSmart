@@ -1,204 +1,238 @@
-import { NextResponse } from 'next/server';
-import type { PredictionResponse } from '../../../../types';
-import cassavaDiseases from '../../../../cassava_diseases.json';
+import { NextResponse } from "next/server";
+import { generateText, Output } from "ai";
+import { google } from "@ai-sdk/google";
+import { enrichPrediction, severityToNumber } from "@/lib/diseases";
+import {
+  cropScanResultSchema,
+  gradeFromSeverity,
+  isCassavaCrop,
+  joinAdvice,
+  parseCropScanResult,
+  type CropScanResult,
+} from "@/lib/crop-scan";
 
-/**
- * Convert string severity to numeric value (0-100)
- */
-function convertSeverityToNumber(severity: string): number {
-  const severityMap: Record<string, number> = {
-    'None': 0,
-    'Low': 25,
-    'Medium': 50,
-    'High': 75,
-    'Very High': 90
-  };
+export const maxDuration = 60;
 
-  // If it's already a number, return it
-  if (typeof severity === 'number') {
-    return Math.min(100, Math.max(0, severity));
-  }
-
-  // If it's a string, try to map it or parse it
-  if (typeof severity === 'string') {
-    // Check if it's a numeric string
-    const numericValue = parseFloat(severity);
-    if (!isNaN(numericValue)) {
-      return Math.min(100, Math.max(0, numericValue));
-    }
-
-    // Try to map from severity string
-    const mappedValue = severityMap[severity.trim()];
-    if (mappedValue !== undefined) {
-      return mappedValue;
-    }
-  }
-
-  // Default fallback
-  return 50;
+function predictionEndpoint() {
+  const configured = process.env.PREDICTION_API_URL || process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000";
+  const base = configured.replace(/\/$/, "");
+  return base.endsWith("/predict") ? base : `${base}/predict`;
 }
 
-/**
- * Get default severity based on disease name
- */
-function getDefaultSeverity(diseaseName: string): number {
-  // Look up the disease in cassava_diseases.json
-  const diseaseKey = Object.keys(cassavaDiseases).find(key =>
-    cassavaDiseases[key as keyof typeof cassavaDiseases].name.toLowerCase() === diseaseName.toLowerCase()
-  );
-
-  if (diseaseKey) {
-    const diseaseInfo = cassavaDiseases[diseaseKey as keyof typeof cassavaDiseases];
-    return convertSeverityToNumber(diseaseInfo.severity);
+function ensureGeminiKey() {
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY && process.env.GEMINI_API_KEY) {
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
   }
-
-  // Default severities for common diseases
-  const defaultSeverities: Record<string, number> = {
-    'healthy': 0,
-    'cassava_healthy': 0,
-    'bacterial': 75,
-    'mosaic': 90,
-    'brown streak': 90,
-    'green mottle': 50,
-    'unknown': 50
-  };
-
-  const lowerDiseaseName = diseaseName.toLowerCase();
-  for (const [key, severity] of Object.entries(defaultSeverities)) {
-    if (lowerDiseaseName.includes(key)) {
-      return severity;
-    }
-  }
-
-  return 50; // Default medium severity
 }
 
-/**
- * Executes the core prediction request using the user-provided code logic.
- */
-export const predictImage = async (imageFile: File, endpoint: string): Promise<PredictionResponse> => {
-  try {
-    const formData = new FormData();
-    formData.append('file', imageFile);
+function hasGeminiKey() {
+  ensureGeminiKey();
+  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
+  return key.length > 20 && !key.includes("your-google-api-key");
+}
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      body: formData
+async function predictWithPython(imageFile: File) {
+  const endpoint = predictionEndpoint();
+  const formData = new FormData();
+  formData.append("file", imageFile);
+
+  const response = await fetch(endpoint, {
+    method: "POST",
+    body: formData,
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!response.ok) {
+    let errorMessage = `Backend Error: ${response.status} ${response.statusText}`;
+    try {
+      const errorData = await response.json();
+      const rawError = errorData.detail || errorData.error || errorData.message;
+      if (rawError) {
+        errorMessage = typeof rawError === "object" ? JSON.stringify(rawError) : String(rawError);
+      }
+    } catch {
+      // Response might not be JSON
+    }
+
+    const errorStr = String(errorMessage);
+    if (response.status === 400 && errorStr.includes("Bad Request")) {
+      throw new Error("Invalid image. Please ensure you've captured a clear photo of a cassava leaf.");
+    }
+    if (response.status === 404) {
+      throw new Error("Prediction service is currently unavailable. Please try again later.");
+    }
+    throw new Error(errorStr);
+  }
+
+  const data = await response.json();
+  let confidence = data.confidence !== undefined ? data.confidence : data.score || 1.0;
+  if (confidence > 1 && confidence <= 100) {
+    confidence = confidence / 100;
+  }
+
+  return {
+    label: data.disease || data.predicted_class || data.label || data.prediction || "Unknown",
+    confidence,
+    metadata: data as Record<string, any>,
+    source: "model" as const,
+  };
+}
+
+async function predictWithGemini(imageBuffer: Buffer, selectedCategory: string): Promise<CropScanResult> {
+  const run = async (modelId: string) => {
+    const result = await generateText({
+      model: google(modelId),
+      temperature: 0.2,
+      abortSignal: AbortSignal.timeout(45000),
+      output: Output.object({
+        schema: cropScanResultSchema,
+        name: "CropScanResult",
+        description: "Structured crop health diagnosis from a plant image.",
+      }),
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `You are an expert plant pathologist and horticultural AI advisor.
+The user selected the crop category: '${selectedCategory}'.
+
+Examine the provided image of the plant part (leaf, fruit, root, or stem):
+1. Identify the specific crop (e.g., Cassava, Tomato, Potato, Bell Pepper, Mango, Apple, Citrus, Avocado, Peach).
+2. Diagnose any disease present, or classify it as Healthy.
+3. Determine a confidence score from 0.00 to 1.00 and a severity grade based on visual lesion coverage.
+4. Provide actionable treatment protocols tailored to this crop. Prefer field-practical advice. Do not invent pesticide product names or dosages. Farmers must follow local regulations.
+5. If the image is not a plant, set crop_category to Unknown, detected_crop to Unknown, and disease_detected to Unknown.`,
+            },
+            { type: "image", image: imageBuffer },
+          ],
+        },
+      ],
     });
 
-    if (!response.ok) {
-      let errorMessage = `Backend Error: ${response.status} ${response.statusText}`;
-      try {
-        const errorData = await response.json();
-        const rawError = errorData.detail || errorData.error || errorData.message;
-        if (rawError) {
-          errorMessage = typeof rawError === 'object' ? JSON.stringify(rawError) : String(rawError);
-        }
-      } catch (e) {
-        // Response might not be JSON
-      }
-
-      // Ensure errorMessage is a string for comparisons
-      const errorStr = String(errorMessage);
-
-      // Provide human-friendly message for common status codes
-      if (response.status === 400 && errorStr.includes('Bad Request')) {
-        errorMessage = "Invalid image. Please ensure you've captured a clear photo of a cassava leaf.";
-      } else if (response.status === 404) {
-        errorMessage = "Prediction service is currently unavailable. Please try again later.";
-      }
-
-      throw new Error(String(errorMessage));
+    if (!result.output) {
+      throw new Error("Gemini returned no structured crop scan result.");
     }
+    return parseCropScanResult(result.output);
+  };
 
-    const data = await response.json();
-
-    // Extract confidence - handle both 0-1 and 0-100 formats
-    let confidence = data.confidence !== undefined ? data.confidence : (data.score || 1.0);
-    if (confidence > 1 && confidence <= 100) {
-      confidence = confidence / 100;
-    }
-
-    // Return the data in the PredictionResponse format, including all original fields in metadata
-    return {
-      label: data.disease || data.predicted_class || data.label || data.prediction || 'Unknown',
-      confidence: confidence,
-      allPredictions: data.probabilities || data.all_predictions || null,
-      metadata: { ...data }
-    };
+  try {
+    return await run("gemini-2.5-flash");
   } catch (error) {
-    console.error("Prediction Service Error:", error);
-    throw error;
+    console.warn("gemini-2.5-flash unavailable, trying gemini-flash-latest:", error);
+    return await run("gemini-flash-latest");
   }
-};
+}
+
+function fromGeminiScan(scan: CropScanResult, selectedCategory: string) {
+  const treatmentPlan = {
+    chemical_control: scan.treatment?.chemical_control ?? [],
+    organic_biological: scan.treatment?.organic_biological ?? [],
+    cultural_practices: scan.treatment?.cultural_practices ?? [],
+  };
+  const treatmentText = joinAdvice([
+    ...treatmentPlan.chemical_control,
+    ...treatmentPlan.organic_biological,
+  ]);
+  const preventionText = joinAdvice(treatmentPlan.cultural_practices);
+  const cassava = isCassavaCrop(scan.detected_crop, selectedCategory);
+  const base = cassava
+    ? enrichPrediction({
+        label: scan.disease_detected,
+        confidence: scan.confidence_score * 100,
+        severity: scan.severity_grade,
+        treatment: treatmentText || undefined,
+        prevention: preventionText || undefined,
+        symptoms: scan.symptoms_observed,
+      })
+    : {
+        disease: scan.disease_detected,
+        diseaseId: scan.disease_detected.toLowerCase().replace(/\s+/g, "-"),
+        shortName: undefined,
+        confidence: Math.round(scan.confidence_score * 100),
+        severity: severityToNumber(scan.severity_grade, scan.is_healthy ? 0 : 50),
+        treatment: treatmentText || "No treatment suggestions provided by AI.",
+        prevention: preventionText || "No prevention suggestions provided by AI.",
+        symptoms: scan.symptoms_observed ?? [],
+        recommendation: undefined,
+        catalogMatched: false,
+      };
+
+  return {
+    ...base,
+    cropCategory: scan.crop_category,
+    detectedCrop: scan.detected_crop,
+    isHealthy: scan.is_healthy,
+    severityGrade: scan.severity_grade,
+    treatmentPlan,
+    source: "gemini" as const,
+  };
+}
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { image } = body;
+    const { image, cropCategory } = body;
+    const selectedCategory = typeof cropCategory === "string" && cropCategory ? cropCategory : "Root & Tuber";
 
     if (!image) {
       return NextResponse.json({ error: "No image data provided" }, { status: 400 });
     }
 
-    // Handle base64 image
-    const base64Data = image.includes(',') ? image.split(',')[1] : image;
-    const buffer = Buffer.from(base64Data, 'base64');
-    const blob = new Blob([buffer], { type: 'image/jpeg' });
-    const file = new File([blob], 'leaf.jpg', { type: 'image/jpeg' });
+    const base64Data = image.includes(",") ? image.split(",")[1] : image;
+    const buffer = Buffer.from(base64Data, "base64");
+    const file = new File([buffer], "leaf.jpg", { type: "image/jpeg" });
 
-    // Call the local Python server
-    const result = await predictImage(file, 'http://localhost:8000/predict');
+    let lastError: unknown;
 
-    // Bridge the PredictionResponse to the PredictionResult format expected by CameraScanner
-    // We only use data directly from the AI model response (result.metadata)
-    const mappedResult = {
-      ...result.metadata, // Include all original data from the Python server
-      disease: result.label,
-      diseaseId: result.metadata?.diseaseId || result.label.toLowerCase().replace(/\s+/g, '-'),
-      confidence: Math.round(result.confidence * 100),
-      // Convert string severity to numeric value (0-100)
-      severity: result.metadata?.severity ?
-        convertSeverityToNumber(result.metadata.severity) :
-        getDefaultSeverity(result.label),
-      // Only include these if they actually exist in the response
-      // Convert arrays to strings if needed
-      treatment: result.metadata?.treatment ?
-        Array.isArray(result.metadata.treatment) ?
-          result.metadata.treatment.join('. ') :
-          result.metadata.treatment :
-        undefined,
-      prevention: result.metadata?.prevention ?
-        Array.isArray(result.metadata.prevention) ?
-          result.metadata.prevention.join('. ') :
-          result.metadata.prevention :
-        undefined,
-      symptoms: result.metadata?.symptoms,
-    };
+    if (hasGeminiKey()) {
+      try {
+        const scan = await predictWithGemini(buffer, selectedCategory);
+        return NextResponse.json(fromGeminiScan(scan, selectedCategory));
+      } catch (error) {
+        lastError = error;
+        console.warn("Gemini structured scan failed, trying local model:", error);
+      }
+    }
 
-    // Ensure all required fields are present and valid
-    const validatedResult = {
-      ...mappedResult,
-      // Ensure severity is always a number
-      severity: typeof mappedResult.severity === 'number' ?
-        mappedResult.severity :
-        getDefaultSeverity(mappedResult.disease),
-      // Ensure treatment and prevention are strings or undefined
-      treatment: mappedResult.treatment || undefined,
-      prevention: mappedResult.prevention || undefined,
-      // Ensure symptoms is an array or undefined
-      symptoms: Array.isArray(mappedResult.symptoms) ? mappedResult.symptoms : undefined,
-    };
+    try {
+      const prediction = await predictWithPython(file);
+      const enriched = enrichPrediction({
+        label: prediction.label,
+        confidence: prediction.confidence * 100,
+        severity: prediction.metadata?.severity,
+        treatment: prediction.metadata?.treatment,
+        prevention: prediction.metadata?.prevention,
+        symptoms: prediction.metadata?.symptoms,
+      });
+      const isHealthy = /healthy/i.test(enriched.disease);
+      return NextResponse.json({
+        ...prediction.metadata,
+        ...enriched,
+        cropCategory: selectedCategory,
+        detectedCrop: "Cassava",
+        isHealthy,
+        severityGrade: gradeFromSeverity(enriched.severity, isHealthy),
+        source: "model",
+      });
+    } catch (error) {
+      lastError = error;
+      console.warn("Python prediction unavailable:", error);
+    }
 
-    return NextResponse.json(validatedResult);
+    const message =
+      lastError instanceof Error && lastError.message.includes("Invalid image")
+        ? lastError.message
+        : "Prediction service is currently unavailable. Set GOOGLE_GENERATIVE_AI_API_KEY (or GEMINI_API_KEY) or start pnpm predict:server.";
+    const statusCode = message.includes("Invalid image") ? 400 : 503;
+    return NextResponse.json({ error: message }, { status: statusCode });
   } catch (error: any) {
-    console.error('API Route Error:', error);
-
-    // Determine status code - if it's a "known" error message we set earlier, it's likely a 400
-    const statusCode = error.message.includes('Invalid image') || error.message.includes('No image') ? 400 : 500;
-
+    console.error("API Route Error:", error);
+    const statusCode =
+      error.message?.includes("Invalid image") || error.message?.includes("No image") ? 400 : 500;
     return NextResponse.json(
-      { error: error.message || 'Internal server error during prediction' },
+      { error: error.message || "Internal server error during prediction" },
       { status: statusCode }
     );
   }

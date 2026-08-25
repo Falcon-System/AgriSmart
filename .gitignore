@@ -61,3 +61,9 @@ dev-dist
 .devtools
 
 /src/generated/prisma
+
+# Python prediction service
+prediction-service/.venv/
+
+# Local scan uploads generated at runtime
+public/cassava_image/scan-*.jpg

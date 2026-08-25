@@ -4,11 +4,11 @@ AgriSmart is a comprehensive agricultural AI application designed specifically f
 
 ## 🌱 Features Overview
 
-- **AI-Powered Disease Scanning**: Capture images of cassava leaves to instantly detect diseases using advanced machine learning models
+- **AI-Powered Disease Scanning**: Capture or upload a plant photo to detect diseases, score severity, and get treatment recommendations
 - **Interactive Dashboard**: Comprehensive farm and field management interface
 - **AI Chat Assistant**: Intelligent agricultural advisor powered by Google Gemini for cassava-specific guidance
 - **Farm Management**: Track and manage farms, fields, and crop health over time
-- **Treatment Recommendations**: Detailed treatment and prevention advice for detected diseases
+- **Treatment Recommendations**: Chemical, organic, and cultural advice for detected diseases
 - **Community Features**: Share experiences and learn from other farmers
 - **Real-time Analysis**: Instant severity assessment and confidence scoring
 
@@ -28,8 +28,8 @@ AgriSmart is a comprehensive agricultural AI application designed specifically f
 
 ### AI & Machine Learning
 - **AI SDK**: Framework for building AI-powered applications
-- **Google Gemini**: Advanced AI model for agricultural insights
-- **Custom ML Model**: Specialized cassava disease detection model
+- **Google Gemini Vision**: Zero-shot structured crop diagnosis (launch inference engine)
+- **Local cassava classifier**: Optional FastAPI ResNet50 fallback when Gemini is unavailable
 
 ### Authentication & Security
 - **JSON Web Tokens (JWT)**: Secure authentication mechanism
@@ -49,8 +49,9 @@ Before setting up the project, ensure you have the following installed:
 - **Node.js** (version 18 or higher)
 - **pnpm** (recommended package manager)
 - **Git**
-- **Python** (for the backend prediction server)
-- **MongoDB** (optional for persistent local data; the app falls back to an in-memory store if it is not configured)
+- **Python** (optional, only for the local cassava fallback classifier)
+- **MongoDB** (recommended for persistent local data; Docker Compose is included)
+- **Docker** (optional, used to start local MongoDB)
 
 ## 🔧 Installation
 
@@ -67,7 +68,7 @@ pnpm install
 
 3. Set up environment variables:
 ```bash
-cp .env.template .env.local
+cp .env.example .env.local
 ```
 
 4. Configure your environment variables in `.env.local`:
@@ -75,13 +76,18 @@ cp .env.template .env.local
 MONGODB_URI="mongodb://127.0.0.1:27017"
 MONGODB_DB="agrismart_local"
 GOOGLE_GENERATIVE_AI_API_KEY="your-google-api-key-here"
+GEMINI_API_KEY="your-google-api-key-here"
 JWT_SECRET="your-secret-key"
 NEXT_PUBLIC_BACKEND_URL="http://localhost:8000"
+PREDICTION_API_URL="http://localhost:8000/predict"
 ```
 
-5. Set up the local database:
-   - Start a local MongoDB instance or point `MONGODB_URI` to your local database.
-   - If no MongoDB URI is configured, the app will use an in-memory fallback for local development.
+5. Start local MongoDB (recommended):
+```bash
+docker compose up -d
+```
+
+If `MONGODB_URI` is not set or MongoDB is unreachable, the app falls back to an in-memory store. That fallback is not persistent across restarts.
 
 ## ⚙️ Configuration
 
@@ -89,25 +95,34 @@ NEXT_PUBLIC_BACKEND_URL="http://localhost:8000"
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| MONGODB_URI | MongoDB connection string for persistent local storage | No |
-| MONGODB_DB | MongoDB database name to use | No |
-| GOOGLE_GENERATIVE_AI_API_KEY | Google AI API key for Gemini integration | Yes |
+| MONGODB_URI | MongoDB connection string for persistent local storage | Recommended |
+| MONGODB_DB | MongoDB database name to use (defaults to `agrismart_local`) | No |
+| GOOGLE_GENERATIVE_AI_API_KEY | Google AI API key for Gemini Vision scans and chat | Yes for Gemini scans |
+| GEMINI_API_KEY | Alias for `GOOGLE_GENERATIVE_AI_API_KEY` | No |
 | JWT_SECRET | Secret for JWT token signing | Yes |
-| NEXT_PUBLIC_BACKEND_URL | URL for the Python prediction backend | Yes |
+| NEXT_PUBLIC_BACKEND_URL | Base URL for the Python cassava fallback | No |
+| PREDICTION_API_URL | Full predict endpoint, e.g. `http://localhost:8000/predict` | No |
 
-### Running the Python Backend
+Scanning uses **Gemini Vision first**. The Next.js `/api/predict` route sends the photo plus selected crop category to Gemini (`gemini-2.5-flash`, then `gemini-flash-latest`) and asks for structured JSON: crop, disease, confidence, severity grade, symptoms, and a treatment plan. That JSON is stored on the scan document in MongoDB.
 
-The AI prediction functionality requires a separate Python backend server:
+If no Gemini key is set, or Gemini fails, the route falls back to the in-repo cassava ResNet classifier.
 
-1. Navigate to your Python backend directory
-2. Install Python dependencies:
+### Running the Python cassava fallback (optional)
+
+The original trained model is no longer in GitHub. This repo includes a 5-class cassava classifier at `prediction-service/` (ResNet50, CBB / CBSD / CGM / CMD / Healthy). You only need this when Gemini is not configured.
+
 ```bash
-pip install -r requirements.txt
+python3 -m venv prediction-service/.venv
+prediction-service/.venv/bin/pip install --upgrade pip
+prediction-service/.venv/bin/pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+prediction-service/.venv/bin/pip install -r prediction-service/requirements.txt
+pnpm predict:server
 ```
 
-3. Start the Python server:
-```bash
-python -m uvicorn main:app --reload --port 8000
+Point Next.js at it in `.env.local`:
+
+```env
+PREDICTION_API_URL="http://localhost:8000/predict"
 ```
 
 ## 🚀 Development Workflow
@@ -152,7 +167,7 @@ cassava_frontend/
 │   └── icons/              # App icons
 ├── src/
 │   ├── api/                # API routes and context
-│   │   └── routers/        # oRPC router definitions (Supabase-powered)
+│   │   └── routers/        # oRPC router definitions
 │   ├── app/                # Next.js app directory (pages)
 │   │   ├── api/            # API routes
 │   │   │   ├── ai/         # AI chat API
@@ -163,12 +178,12 @@ cassava_frontend/
 │   │   ├── login/          # Authentication pages
 │   ├── components/         # Reusable React components
 │   ├── hooks/              # Custom React hooks
-│   ├── lib/                # Library configurations (Supabase client)
+│   ├── lib/                # Database and utility helpers (MongoDB adapter)
 │   ├── tests/              # Test files
 │   └── utils/              # Utility functions
 ├── services/               # Backend service implementations
-├── .env.template           # Environment variables template
-├── supabase_setup.sql      # SQL script for Supabase database setup
+├── .env.example            # Environment variables template
+├── docker-compose.yml      # Local MongoDB
 ├── next.config.mjs        # Next.js configuration
 ├── package.json           # Project dependencies
 └── README.md              # Project documentation
@@ -178,33 +193,41 @@ cassava_frontend/
 
 ### Disease Scanning
 1. Navigate to the dashboard and click on the "Scans" section
-2. Click "New Scan" to open the camera interface
-3. Position a cassava leaf within the frame
-4. Take a photo of the leaf
-5. Wait for AI analysis to complete
-6. Review disease detection results, severity, and treatment recommendations
+2. Click "New Scan" and choose a crop category (`Root & Tuber`, `Solanaceous`, or `Tree Fruit`)
+3. Capture a photo with the camera or upload an image
+4. Wait for AI analysis to complete
+5. Review disease detection, severity grade, symptoms, and the chemical / organic / cultural treatment plan
 
 ### AI Chat Functionality
 1. Go to the "Chat" section in the dashboard
-2. Type your question about cassava farming or disease management
+2. Type your question about crop health for cassava, tomato, pepper, or fruit trees
 3. Receive expert advice powered by Google Gemini AI
-4. The AI is specifically trained on cassava-related topics
+4. From a scan report, click "Ask AI for More Details". Chat loads that scan from MongoDB and sends crop, disease, severity, symptoms, and treatment to Gemini as system context.
 
 ## 🌐 API Documentation
 
 ### Prediction API
 **Endpoint**: `POST /api/predict`
-- **Description**: Analyze uploaded cassava leaf image for disease detection
-- **Request Body**: 
+- **Description**: Analyze an uploaded plant image with Gemini Vision structured output, falling back to the local cassava classifier
+- **Request Body**:
   ```json
   {
-    "image": "base64-encoded-image-string"
+    "image": "base64-encoded-image-string",
+    "cropCategory": "Root & Tuber"
   }
   ```
+- **Response** (Gemini path): crop category, detected crop, disease, confidence, severity grade, symptoms, and a treatment plan with `chemical_control`, `organic_biological`, and `cultural_practices`
 
 ### AI Chat API
 **Endpoint**: `POST /api/ai`
-- **Description**: Communicate with the AI agricultural assistant
+- **Description**: Stream a Gemini agronomist reply. If `scanId` is sent, the route loads that scan from MongoDB and injects crop, disease, severity, symptoms, and treatment as system context.
+- **Request Body**:
+  ```json
+  {
+    "messages": [],
+    "scanId": "uuid-of-scan"
+  }
+  ```
 
 ### Authentication APIs
 - `POST /api/auth/register` - User registration
@@ -234,13 +257,13 @@ This project is licensed under the MIT License.
 - **Issue**: "Unable to access camera"
 - **Solution**: Ensure you're using HTTPS (localhost is allowed) and camera permissions are granted
 
-#### 2. Supabase Connection Errors
-- **Issue**: "Supabase credentials not found"
-- **Solution**: Verify `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` are set in `.env.local`
+#### 2. MongoDB Connection Errors
+- **Issue**: Data disappears after restart, or logs show "MongoDB connection failed"
+- **Solution**: Start MongoDB with `docker compose up -d` and confirm `MONGODB_URI` is set in `.env.local`
 
 #### 3. Prediction Service Unavailable
 - **Issue**: "Prediction service is currently unavailable"
-- **Solution**: Ensure your Python backend server is running on `http://localhost:8000`
+- **Solution**: Set a real `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`) in `.env.local`, or start the local cassava fallback with `pnpm predict:server`
 
 ---
 

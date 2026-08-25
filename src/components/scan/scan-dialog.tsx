@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -17,6 +17,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 import { CameraScanner } from "@/components/scan/camera-scanner";
 import { orpc, client } from "@/utils/orpc";
+import { CROP_CATEGORIES } from "@/lib/crop-scan";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import {
     Dialog,
     DialogContent,
@@ -50,17 +58,16 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
     const [step, setStep] = useState<"capture" | "confirming">("capture");
     const [image, setImage] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [cropCategory, setCropCategory] = useState<string>("Root & Tuber");
+    const ignoreDismissUntil = useRef(0);
+
+    const armFilePickerGuard = useCallback(() => {
+        // Native file pickers blur the dialog; ignore dismiss until the OS picker closes.
+        ignoreDismissUntil.current = Date.now() + 1500;
+    }, []);
 
     const createMutation = useMutation({
-        mutationFn: (data: {
-            fieldId?: string | null;
-            imageUrl: string;
-            disease: string;
-            severity: number;
-            confidence: number;
-            treatment?: string;
-            prevention?: string;
-        }) => (client.scans.create as any)(data),
+        mutationFn: (data: Record<string, unknown>) => (client.scans.create as any)(data),
         onSuccess: async (data: any) => {
             // Use broad invalidation as a safer alternative to queryFilter
             await queryClient.invalidateQueries({ queryKey: ["scans"] });
@@ -77,6 +84,8 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
 
     const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        e.target.value = "";
+        ignoreDismissUntil.current = Date.now() + 1000;
         if (!file) return;
 
         const reader = new FileReader();
@@ -87,6 +96,16 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
         reader.readAsDataURL(file);
     }, []);
 
+    const handleOpenChange = useCallback((nextOpen: boolean, details?: { reason?: string; cancel?: () => void }) => {
+        const guarded = Date.now() < ignoreDismissUntil.current;
+        if (!nextOpen && (details?.reason === "focus-out" || (guarded && details?.reason === "outside-press"))) {
+            details.cancel?.();
+            return;
+        }
+        setOpen(nextOpen);
+        if (!nextOpen) reset();
+    }, []);
+
     const startAnalysis = useCallback(async () => {
         if (!image) return;
 
@@ -95,7 +114,7 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
             const response = await fetch("/api/predict", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ image }),
+                body: JSON.stringify({ image, cropCategory }),
             });
 
             const data = await response.json();
@@ -110,15 +129,22 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                 disease: data.disease || "Unknown",
                 severity: typeof data.severity === 'number' ? data.severity : 50,
                 confidence: typeof data.confidence === 'number' ? data.confidence : 0,
-                treatment: data.treatment || "No treatment suggestions provided by AI.",
-                prevention: data.prevention || "No prevention suggestions provided by AI.",
+                treatment: data.treatment,
+                prevention: data.prevention,
+                cropCategory: data.cropCategory || cropCategory,
+                detectedCrop: data.detectedCrop,
+                isHealthy: data.isHealthy,
+                severityGrade: data.severityGrade,
+                symptoms: data.symptoms,
+                source: data.source,
+                treatmentPlan: data.treatmentPlan,
             });
         } catch (err: any) {
             console.error("Analysis or Saving Error:", err);
             toast.error(err.message || "AI Analysis failed. Please try again.");
             setIsAnalyzing(false);
         }
-    }, [image, createMutation]);
+    }, [image, cropCategory, createMutation]);
 
     const reset = () => {
         setStep("capture");
@@ -127,7 +153,11 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
     };
 
     return (
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
+        <Dialog
+            open={open}
+            disablePointerDismissal
+            onOpenChange={handleOpenChange}
+        >
             <DialogTrigger render={trigger as any} />
             <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl h-[85vh] flex flex-col">
                 <div className="flex flex-col bg-zinc-50 dark:bg-zinc-950 flex-1 overflow-hidden">
@@ -151,6 +181,16 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                     <div className="p-4 flex-1 flex flex-col items-center justify-center overflow-hidden">
                         {step === "capture" && (
                             <Tabs defaultValue="camera" className="w-full h-full flex flex-col space-y-4 overflow-hidden">
+                                <Select value={cropCategory} onValueChange={setCropCategory}>
+                                    <SelectTrigger className="w-full rounded-2xl h-11 bg-muted border-none shrink-0">
+                                        <SelectValue placeholder="Crop category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {CROP_CATEGORIES.filter((category) => category !== "Unknown").map((category) => (
+                                            <SelectItem key={category} value={category}>{category}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                                 <TabsList className="grid w-full grid-cols-2 rounded-2xl h-11 p-1 bg-muted shrink-0">
                                     <TabsTrigger value="camera" className="rounded-xl data-[state=active]:bg-background data-[state=active]:shadow-sm text-xs">
                                         <Camera className="size-4 mr-2" />
@@ -190,6 +230,8 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                                             type="file"
                                             accept="image/*"
                                             className="absolute inset-0 opacity-0 cursor-pointer"
+                                            onClick={armFilePickerGuard}
+                                            onPointerDown={armFilePickerGuard}
                                             onChange={handleImageSelect}
                                         />
                                     </div>
@@ -240,7 +282,7 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                     <div className="p-3 bg-white dark:bg-zinc-900 border-t flex justify-center shrink-0">
                         <div className="flex items-center gap-2 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[10px] font-medium text-muted-foreground">
                             <Scan className="size-3" />
-                            <span>Powered by Advanced Computer Vision</span>
+                            <span>Powered by Gemini Vision with a local cassava fallback</span>
                         </div>
                     </div>
                 </div>
