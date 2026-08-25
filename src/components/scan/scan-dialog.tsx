@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -59,6 +59,12 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
     const [image, setImage] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [cropCategory, setCropCategory] = useState<string>("Root & Tuber");
+    const ignoreDismissUntil = useRef(0);
+
+    const armFilePickerGuard = useCallback(() => {
+        // Native file pickers blur the dialog; ignore dismiss until the OS picker closes.
+        ignoreDismissUntil.current = Date.now() + 1500;
+    }, []);
 
     const createMutation = useMutation({
         mutationFn: (data: Record<string, unknown>) => (client.scans.create as any)(data),
@@ -78,6 +84,8 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
 
     const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
+        e.target.value = "";
+        ignoreDismissUntil.current = Date.now() + 1000;
         if (!file) return;
 
         const reader = new FileReader();
@@ -86,6 +94,16 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
             setStep("confirming");
         };
         reader.readAsDataURL(file);
+    }, []);
+
+    const handleOpenChange = useCallback((nextOpen: boolean, details?: { reason?: string; cancel?: () => void }) => {
+        const guarded = Date.now() < ignoreDismissUntil.current;
+        if (!nextOpen && (details?.reason === "focus-out" || (guarded && details?.reason === "outside-press"))) {
+            details.cancel?.();
+            return;
+        }
+        setOpen(nextOpen);
+        if (!nextOpen) reset();
     }, []);
 
     const startAnalysis = useCallback(async () => {
@@ -135,7 +153,11 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
     };
 
     return (
-        <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) reset(); }}>
+        <Dialog
+            open={open}
+            disablePointerDismissal
+            onOpenChange={handleOpenChange}
+        >
             <DialogTrigger render={trigger as any} />
             <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl h-[85vh] flex flex-col">
                 <div className="flex flex-col bg-zinc-50 dark:bg-zinc-950 flex-1 overflow-hidden">
@@ -208,6 +230,8 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                                             type="file"
                                             accept="image/*"
                                             className="absolute inset-0 opacity-0 cursor-pointer"
+                                            onClick={armFilePickerGuard}
+                                            onPointerDown={armFilePickerGuard}
                                             onChange={handleImageSelect}
                                         />
                                     </div>
