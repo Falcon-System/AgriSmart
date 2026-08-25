@@ -223,7 +223,7 @@ export const appRouter = base.router({
                     if (error) throw error;
                     return data;
                 } catch (dbError) {
-                    console.error("Supabase Create Error:", dbError);
+                    console.error("Database Create Error:", dbError);
                     throw dbError;
                 }
             }),
@@ -352,37 +352,125 @@ export const appRouter = base.router({
         }),
     }),
 
+    settings: base.router({
+        get: base.handler(async ({ context }) => {
+            const { data, error } = await context.db
+                .from("Settings")
+                .select("*")
+                .eq("id", "default")
+                .maybeSingle();
+
+            if (error) throw error;
+
+            return {
+                orgName: data?.orgName || "",
+                locale: data?.locale || "en-US",
+                currency: data?.currency || "ETB",
+            };
+        }),
+
+        update: base
+            .input(z.object({
+                orgName: z.string(),
+                locale: z.string(),
+                currency: z.string(),
+            }))
+            .handler(async ({ input, context }) => {
+                const { data: existing, error: findError } = await context.db
+                    .from("Settings")
+                    .select("*")
+                    .eq("id", "default")
+                    .maybeSingle();
+
+                if (findError) throw findError;
+
+                if (existing) {
+                    const { data, error } = await context.db
+                        .from("Settings")
+                        .update({
+                            orgName: input.orgName,
+                            locale: input.locale,
+                            currency: input.currency,
+                        })
+                        .eq("id", "default")
+                        .select()
+                        .single();
+                    if (error) throw error;
+                    return data;
+                }
+
+                const { data, error } = await context.db
+                    .from("Settings")
+                    .insert({
+                        id: "default",
+                        orgName: input.orgName,
+                        locale: input.locale,
+                        currency: input.currency,
+                    })
+                    .select()
+                    .single();
+                if (error) throw error;
+                return data;
+            }),
+    }),
+
     community: base.router({
         list: base.handler(async ({ context }) => {
             const { data: posts, error } = await context.db
                 .from("CommunityPost")
-                .select(`
-                    *,
-                    user:User(firstName, lastName, organization),
-                    comments:Comment(id),
-                    likes:Like(isLike, userId)
-                `)
+                .select("*")
                 .order("createdAt", { ascending: false });
 
             if (error) throw error;
 
-            return posts.map((post: any) => {
-                const likesCount = post.likes.filter((l: any) => l.isLike).length;
-                const dislikesCount = post.likes.filter((l: any) => !l.isLike).length;
-                const commentsCount = post.comments.length;
-                
+            const [{ data: users }, { data: comments }, { data: likes }] = await Promise.all([
+                context.db.from("User").select("id, firstName, lastName, organization"),
+                context.db.from("Comment").select("id, postId"),
+                context.db.from("Like").select("id, isLike, userId, postId"),
+            ]);
+
+            const usersById = new Map((users ?? []).map((user: any) => [user.id, user]));
+            const commentsByPost = new Map<string, any[]>();
+            for (const comment of comments ?? []) {
+                const list = commentsByPost.get(comment.postId) ?? [];
+                list.push(comment);
+                commentsByPost.set(comment.postId, list);
+            }
+            const likesByPost = new Map<string, any[]>();
+            for (const like of likes ?? []) {
+                const list = likesByPost.get(like.postId) ?? [];
+                list.push(like);
+                likesByPost.set(like.postId, list);
+            }
+
+            return (posts ?? []).map((post: any) => {
+                const postLikes = likesByPost.get(post.id) ?? [];
+                const postComments = commentsByPost.get(post.id) ?? [];
+                const author = usersById.get(post.userId);
+                const likesCount = postLikes.filter((l: any) => l.isLike).length;
+                const dislikesCount = postLikes.filter((l: any) => !l.isLike).length;
+
                 let userLikeState = null;
                 if (context.user) {
-                    const userLike = post.likes.find((l: any) => l.userId === context.user?.id);
+                    const userLike = postLikes.find((l: any) => l.userId === context.user?.id);
                     if (userLike) userLikeState = userLike.isLike ? "like" : "dislike";
                 }
 
                 return {
                     ...post,
+                    user: author
+                        ? {
+                            firstName: author.firstName,
+                            lastName: author.lastName,
+                            organization: author.organization,
+                        }
+                        : { firstName: "Unknown", lastName: "User", organization: null },
+                    comments: postComments,
+                    likes: postLikes,
                     imageUrl: post.image,
                     likesCount,
                     dislikesCount,
-                    commentsCount,
+                    commentsCount: postComments.length,
                     userLikeState
                 };
             });
@@ -439,37 +527,49 @@ export const appRouter = base.router({
             .handler(async ({ input, context }) => {
                 const { data: post, error } = await context.db
                     .from("CommunityPost")
-                    .select(`
-                        *,
-                        user:User(firstName, lastName, organization),
-                        comments:Comment(
-                            *,
-                            user:User(firstName, lastName)
-                        ),
-                        likes:Like(*)
-                    `)
+                    .select("*")
                     .eq("id", input.id)
                     .single();
 
                 if (error || !post) throw new Error("Post not found");
 
-                // Sort comments manually if needed, or we could have ordered in select if Supabase supported it deeply
-                const sortedComments = (post.comments || []).sort((a: any, b: any) => 
-                    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-                );
+                const [{ data: author }, { data: comments }, { data: likes }, { data: users }] = await Promise.all([
+                    context.db.from("User").select("firstName, lastName, organization").eq("id", post.userId).maybeSingle(),
+                    context.db.from("Comment").select("*").eq("postId", post.id),
+                    context.db.from("Like").select("*").eq("postId", post.id),
+                    context.db.from("User").select("id, firstName, lastName"),
+                ]);
 
-                const likesCount = (post.likes || []).filter((l: any) => l.isLike).length;
-                const dislikesCount = (post.likes || []).filter((l: any) => !l.isLike).length;
+                const usersById = new Map((users ?? []).map((user: any) => [user.id, user]));
+                const sortedComments = [...(comments ?? [])]
+                    .sort((a: any, b: any) =>
+                        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+                    )
+                    .map((comment: any) => {
+                        const commentUser = usersById.get(comment.userId);
+                        return {
+                            ...comment,
+                            user: commentUser
+                                ? { firstName: commentUser.firstName, lastName: commentUser.lastName }
+                                : { firstName: "Unknown", lastName: "User" },
+                        };
+                    });
+
+                const postLikes = likes ?? [];
+                const likesCount = postLikes.filter((l: any) => l.isLike).length;
+                const dislikesCount = postLikes.filter((l: any) => !l.isLike).length;
 
                 let userLikeState = null;
                 if (context.user) {
-                    const found = (post.likes || []).find((l: any) => l.userId === context.user?.id);
+                    const found = postLikes.find((l: any) => l.userId === context.user?.id);
                     if (found) userLikeState = found.isLike ? "like" : "dislike";
                 }
 
                 return {
                     ...post,
+                    user: author || { firstName: "Unknown", lastName: "User", organization: null },
                     comments: sortedComments,
+                    likes: postLikes,
                     imageUrl: post.image,
                     likesCount,
                     dislikesCount,

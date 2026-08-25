@@ -50,7 +50,8 @@ Before setting up the project, ensure you have the following installed:
 - **pnpm** (recommended package manager)
 - **Git**
 - **Python** (for the backend prediction server)
-- **MongoDB** (optional for persistent local data; the app falls back to an in-memory store if it is not configured)
+- **MongoDB** (recommended for persistent local data; Docker Compose is included)
+- **Docker** (optional, used to start local MongoDB)
 
 ## 🔧 Installation
 
@@ -67,7 +68,7 @@ pnpm install
 
 3. Set up environment variables:
 ```bash
-cp .env.template .env.local
+cp .env.example .env.local
 ```
 
 4. Configure your environment variables in `.env.local`:
@@ -79,9 +80,12 @@ JWT_SECRET="your-secret-key"
 NEXT_PUBLIC_BACKEND_URL="http://localhost:8000"
 ```
 
-5. Set up the local database:
-   - Start a local MongoDB instance or point `MONGODB_URI` to your local database.
-   - If no MongoDB URI is configured, the app will use an in-memory fallback for local development.
+5. Start local MongoDB (recommended):
+```bash
+docker compose up -d
+```
+
+If `MONGODB_URI` is not set or MongoDB is unreachable, the app falls back to an in-memory store. That fallback is not persistent across restarts.
 
 ## ⚙️ Configuration
 
@@ -89,8 +93,8 @@ NEXT_PUBLIC_BACKEND_URL="http://localhost:8000"
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| MONGODB_URI | MongoDB connection string for persistent local storage | No |
-| MONGODB_DB | MongoDB database name to use | No |
+| MONGODB_URI | MongoDB connection string for persistent local storage | Recommended |
+| MONGODB_DB | MongoDB database name to use (defaults to `agrismart_local`) | No |
 | GOOGLE_GENERATIVE_AI_API_KEY | Google AI API key for Gemini integration | Yes |
 | JWT_SECRET | Secret for JWT token signing | Yes |
 | NEXT_PUBLIC_BACKEND_URL | URL for the Python prediction backend | Yes |
@@ -152,7 +156,7 @@ cassava_frontend/
 │   └── icons/              # App icons
 ├── src/
 │   ├── api/                # API routes and context
-│   │   └── routers/        # oRPC router definitions (Supabase-powered)
+│   │   └── routers/        # oRPC router definitions
 │   ├── app/                # Next.js app directory (pages)
 │   │   ├── api/            # API routes
 │   │   │   ├── ai/         # AI chat API
@@ -163,12 +167,12 @@ cassava_frontend/
 │   │   ├── login/          # Authentication pages
 │   ├── components/         # Reusable React components
 │   ├── hooks/              # Custom React hooks
-│   ├── lib/                # Library configurations (Supabase client)
+│   ├── lib/                # Database and utility helpers (MongoDB adapter)
 │   ├── tests/              # Test files
 │   └── utils/              # Utility functions
 ├── services/               # Backend service implementations
-├── .env.template           # Environment variables template
-├── supabase_setup.sql      # SQL script for Supabase database setup
+├── .env.example            # Environment variables template
+├── docker-compose.yml      # Local MongoDB
 ├── next.config.mjs        # Next.js configuration
 ├── package.json           # Project dependencies
 └── README.md              # Project documentation
@@ -234,9 +238,9 @@ This project is licensed under the MIT License.
 - **Issue**: "Unable to access camera"
 - **Solution**: Ensure you're using HTTPS (localhost is allowed) and camera permissions are granted
 
-#### 2. Supabase Connection Errors
-- **Issue**: "Supabase credentials not found"
-- **Solution**: Verify `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY` are set in `.env.local`
+#### 2. MongoDB Connection Errors
+- **Issue**: Data disappears after restart, or logs show "MongoDB connection failed"
+- **Solution**: Start MongoDB with `docker compose up -d` and confirm `MONGODB_URI` is set in `.env.local`
 
 #### 3. Prediction Service Unavailable
 - **Issue**: "Prediction service is currently unavailable"
