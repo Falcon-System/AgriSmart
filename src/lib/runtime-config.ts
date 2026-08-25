@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "fs";
-import { resolve } from "path";
+import { dirname, join } from "path";
+import { parse as parseDotenv } from "dotenv";
 
 const PLACEHOLDER_SECRET =
   /your-google-api-key|api-key-here|changeme|placeholder|example\.com|^your-|^changeme|^placeholder|^xxx$/i;
@@ -13,16 +14,21 @@ const GEMINI_ENV_NAMES = [
 export type GeminiKeyStatus = {
   configured: boolean;
   reason: "ok" | "missing" | "placeholder" | "too_short";
-  source: (typeof GEMINI_ENV_NAMES)[number] | ".env.local" | null;
+  source: string | null;
   keyLength: number;
   looksLikeGoogleKey: boolean;
   hint: string;
+  cwd: string;
+  filesFound: string[];
+  keyNamesFound: string[];
 };
 
 function sanitizeSecret(value?: string | null) {
   return String(value || "")
     .replace(/^\uFEFF/, "")
     .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[“”]/g, '"')
+    .replace(/[‘’]/g, "'")
     .trim()
     .replace(/^["']|["']$/g, "")
     .trim();
@@ -41,28 +47,74 @@ export function isPlaceholderSecret(value?: string | null) {
   return key.length < 20 || PLACEHOLDER_SECRET.test(key);
 }
 
-function parseEnvFile(filePath: string) {
+function isGeminiEnvName(name: string) {
+  const normalized = name.trim().replace(/[-\s]/g, "_").toUpperCase();
+  if ((GEMINI_ENV_NAMES as readonly string[]).includes(normalized)) return true;
+  return (
+    (normalized.includes("GEMINI") && normalized.includes("KEY")) ||
+    (normalized.includes("GENERATIVE") && normalized.includes("KEY"))
+  );
+}
+
+function readEnvFile(filePath: string) {
   const values: Record<string, string> = {};
   if (!existsSync(filePath)) return values;
 
-  for (const rawLine of readFileSync(filePath, "utf8").split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const match = line.match(/^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
-    if (!match) continue;
-    values[match[1]] = sanitizeSecret(match[2]);
+  const buffer = readFileSync(filePath);
+  const text =
+    buffer[0] === 0xff && buffer[1] === 0xfe
+      ? buffer.toString("utf16le")
+      : buffer.toString("utf8").replace(/^\uFEFF/, "");
+
+  const parsed = parseDotenv(text);
+  for (const [rawName, rawValue] of Object.entries(parsed)) {
+    const name = rawName.trim().replace(/^\uFEFF/, "");
+    if (!name) continue;
+    values[name] = sanitizeSecret(rawValue);
   }
   return values;
 }
 
-function fileEnvValues() {
-  return {
-    ...parseEnvFile(resolve(process.cwd(), ".env")),
-    ...parseEnvFile(resolve(process.cwd(), ".env.local")),
+function discoverEnvFiles() {
+  const files: string[] = [];
+  const seen = new Set<string>();
+  const add = (filePath: string) => {
+    if (existsSync(filePath) && !seen.has(filePath)) {
+      seen.add(filePath);
+      files.push(filePath);
+    }
   };
+
+  const dirs = [process.cwd()];
+  let dir = process.cwd();
+  for (let i = 0; i < 5; i += 1) {
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+    dirs.push(dir);
+  }
+  for (const extra of ["frontend", "web", "AgriSmart", "cassava_frontend", "app"]) {
+    dirs.push(join(process.cwd(), extra));
+  }
+
+  for (const folder of dirs) {
+    add(join(folder, ".env.local"));
+    add(join(folder, ".env.local.txt"));
+    add(join(folder, ".env"));
+  }
+  return files;
 }
 
-function inspectCandidate(name: string, value: string, source: GeminiKeyStatus["source"]): GeminiKeyStatus {
+function mergedFileEnv() {
+  const files = discoverEnvFiles();
+  const values: Record<string, string> = {};
+  for (const file of files) {
+    Object.assign(values, readEnvFile(file));
+  }
+  return { files, values };
+}
+
+function inspectCandidate(name: string, value: string, source: string): Omit<GeminiKeyStatus, "cwd" | "filesFound" | "keyNamesFound"> {
   const key = extractGoogleApiKey(sanitizeSecret(value));
   const looksLikeGoogleKey = /^AIza[0-9A-Za-z_\-]{20,}$/.test(key);
 
@@ -73,7 +125,7 @@ function inspectCandidate(name: string, value: string, source: GeminiKeyStatus["
       source,
       keyLength: 0,
       looksLikeGoogleKey: false,
-      hint: `No value found for ${name}. Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local.`,
+      hint: `Found ${name}, but it is empty.`,
     };
   }
 
@@ -95,7 +147,7 @@ function inspectCandidate(name: string, value: string, source: GeminiKeyStatus["
       source,
       keyLength: key.length,
       looksLikeGoogleKey: false,
-      hint: "The value in .env.local is still the example placeholder. Replace it with the key from Google AI Studio.",
+      hint: "The value is still the example placeholder. Replace it with the key from Google AI Studio.",
     };
   }
 
@@ -120,45 +172,80 @@ function inspectCandidate(name: string, value: string, source: GeminiKeyStatus["
   };
 }
 
-export function getGeminiKeyStatus(): GeminiKeyStatus {
-  const fileValues = fileEnvValues();
-  const candidates: Array<{ name: (typeof GEMINI_ENV_NAMES)[number]; value: string; source: GeminiKeyStatus["source"] }> = [];
+function withFileMeta(
+  status: Omit<GeminiKeyStatus, "cwd" | "filesFound" | "keyNamesFound">,
+  files: string[],
+  values: Record<string, string>
+): GeminiKeyStatus {
+  return {
+    ...status,
+    cwd: process.cwd(),
+    filesFound: files,
+    keyNamesFound: Object.keys(values).filter((name) => /key|gemini|google|mongo|jwt/i.test(name)),
+  };
+}
 
-  for (const name of GEMINI_ENV_NAMES) {
-    if (process.env[name]) {
-      candidates.push({ name, value: process.env[name] as string, source: name });
-    }
-    if (fileValues[name]) {
-      candidates.push({ name, value: fileValues[name], source: ".env.local" });
-    }
+export function getGeminiKeyStatus(): GeminiKeyStatus {
+  const { files, values } = mergedFileEnv();
+  const candidates: Array<{ name: string; value: string; source: string }> = [];
+
+  for (const name of Object.keys(process.env)) {
+    if (!isGeminiEnvName(name) || !process.env[name]) continue;
+    candidates.push({ name, value: process.env[name] as string, source: `process:${name}` });
+  }
+
+  for (const name of Object.keys(values)) {
+    if (!isGeminiEnvName(name) || !values[name]) continue;
+    candidates.push({ name, value: values[name], source: `file:${name}` });
   }
 
   for (const candidate of candidates) {
     const status = inspectCandidate(candidate.name, candidate.value, candidate.source);
-    if (status.configured) return status;
+    if (status.configured) return withFileMeta(status, files, values);
   }
 
   if (candidates.length > 0) {
-    return inspectCandidate(candidates[0].name, candidates[0].value, candidates[0].source);
+    return withFileMeta(inspectCandidate(candidates[0].name, candidates[0].value, candidates[0].source), files, values);
   }
 
-  return {
-    configured: false,
-    reason: "missing",
-    source: null,
-    keyLength: 0,
-    looksLikeGoogleKey: false,
-    hint: "No Gemini key found. Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local and run pnpm dev:clean.",
-  };
+  if (files.length === 0) {
+    return withFileMeta(
+      {
+        configured: false,
+        reason: "missing",
+        source: null,
+        keyLength: 0,
+        looksLikeGoogleKey: false,
+        hint: `No .env.local file found. Create it next to package.json in ${process.cwd()}`,
+      },
+      files,
+      values
+    );
+  }
+
+  return withFileMeta(
+    {
+      configured: false,
+      reason: "missing",
+      source: null,
+      keyLength: 0,
+      looksLikeGoogleKey: false,
+      hint: "Found an env file, but it has no GOOGLE_GENERATIVE_AI_API_KEY or GEMINI_API_KEY line. Put the key next to package.json, not in a backend folder.",
+    },
+    files,
+    values
+  );
 }
 
 export function getGeminiApiKey() {
   const status = getGeminiKeyStatus();
   if (!status.configured) return "";
 
-  const fileValues = fileEnvValues();
-  for (const name of GEMINI_ENV_NAMES) {
-    const value = extractGoogleApiKey(sanitizeSecret(process.env[name] || fileValues[name] || ""));
+  const { values } = mergedFileEnv();
+  const pool = { ...values, ...process.env };
+  for (const name of Object.keys(pool)) {
+    if (!isGeminiEnvName(name)) continue;
+    const value = extractGoogleApiKey(sanitizeSecret(pool[name]));
     if (value && !isPlaceholderSecret(value)) {
       process.env.GOOGLE_GENERATIVE_AI_API_KEY = value;
       return value;
