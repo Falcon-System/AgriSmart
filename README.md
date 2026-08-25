@@ -220,10 +220,10 @@ cassava_frontend/
 5. Review disease detection, severity grade, symptoms, and the chemical / organic / cultural treatment plan
 
 ### AI Chat Functionality
-1. Go to the "Chat" section in the dashboard
-2. Type your question about crop health for cassava, tomato, pepper, or fruit trees
-3. Receive expert advice powered by Google Gemini AI
-4. From a scan report, click "Ask AI for More Details". Chat loads that scan from MongoDB and sends crop, disease, severity, symptoms, and treatment to Gemini as system context.
+1. Open **Ask AI** in the dashboard
+2. Tap one of your MongoDB scans, or open a scan report and click **Ask AI about this scan**
+3. Gemini receives that scan (crop, disease, severity, symptoms, treatment) as system context
+4. Type a follow-up question, or tap a suggested question
 
 ## 🌐 API Documentation
 

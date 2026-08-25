@@ -135,6 +135,10 @@ export async function getMongoStatus() {
   }
 }
 
+export async function getMongoDb() {
+  return connectMongoIfConfigured();
+}
+
 async function connectMongoIfConfigured(): Promise<MongoDatabase | null> {
   if (globalForMongo.mongoDb) return globalForMongo.mongoDb;
   if (globalForMongo.mongoConnectPromise) return globalForMongo.mongoConnectPromise;

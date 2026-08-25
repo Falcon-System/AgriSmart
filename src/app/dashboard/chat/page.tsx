@@ -1,33 +1,54 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useQuery } from "@tanstack/react-query";
-import { Send, Loader2, RotateCcw, Leaf } from "lucide-react";
+import { Send, Loader2, RotateCcw, Leaf, X } from "lucide-react";
 import { Streamdown } from "streamdown";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { client } from "@/utils/orpc";
+import { orpc, client } from "@/utils/orpc";
 
-const SUGGESTIONS = [
+const GENERAL_SUGGESTIONS = [
   "How do I treat cassava mosaic?",
   "My tomato leaves have dark spots",
   "What causes mango fruit spots?",
   "When should I remove infected plants?",
 ];
 
+const SCAN_SUGGESTIONS = [
+  "Explain this scan in simple words",
+  "What should I do first?",
+  "Should I remove infected plants?",
+  "How do I stop it spreading?",
+];
+
 function farmerFacingText(text: string) {
   if (/API[_ ]?key not valid|API_KEY_INVALID|GOOGLE_GENERATIVE_AI|GEMINI_API_KEY/i.test(text)) {
-    return "Ask AI is not available yet. Please try again later.";
+    return "Ask AI is not available yet. Add a Gemini key and restart the app.";
   }
   return text;
 }
 
+function scanLabel(scan: Record<string, unknown> | null | undefined) {
+  if (!scan) return "Scan";
+  return String(scan.disease || scan.diseaseDetected || "Scan");
+}
+
+function scanMeta(scan: Record<string, unknown> | null | undefined) {
+  if (!scan) return "";
+  return [scan.detectedCrop, scan.severityGrade || (scan.severity != null ? `${scan.severity}%` : "")]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(" · ");
+}
+
 function ChatPageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const scanId = searchParams.get("scanId");
   const [input, setInput] = useState("");
@@ -36,22 +57,28 @@ function ChatPageInner() {
   const scanIdRef = useRef(scanId);
   scanIdRef.current = scanId;
 
+  const scansQuery = useQuery(orpc.scans.list.queryOptions());
+  const scans = (scansQuery.data ?? []) as Array<Record<string, unknown>>;
+  const selectedScan = scans.find((scan) => scan.id === scanId) ?? null;
+
   const scanQuery = useQuery({
     queryKey: ["scans", "get", scanId],
     queryFn: () => (client.scans.get as any)({ id: scanId }),
-    enabled: Boolean(scanId),
+    enabled: Boolean(scanId) && !selectedScan,
   });
-  const scan = scanQuery.data;
+  const scan = (selectedScan || scanQuery.data) as Record<string, unknown> | null;
 
   const { messages, sendMessage, status, setMessages, error } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/ai",
+      body: () => ({ scanId: scanIdRef.current || undefined, scan_id: scanIdRef.current || undefined }),
       prepareSendMessagesRequest: ({ id, messages, body }) => ({
         body: {
           ...body,
           id,
           messages,
-          scanId: scanIdRef.current,
+          scanId: scanIdRef.current || undefined,
+          scan_id: scanIdRef.current || undefined,
         },
       }),
     }),
@@ -65,17 +92,7 @@ function ChatPageInner() {
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
-
-  useEffect(() => {
-    if (!scanId || !scan?.disease) return;
-    const key = `agrismart-scan-chat:${scanId}`;
-    if (sessionStorage.getItem(key)) return;
-    sessionStorage.setItem(key, "1");
-    sendMessage({
-      text: "Explain this scan in simple words and tell me what to do first.",
-    });
-  }, [scanId, scan, sendMessage]);
+  }, [scanId]);
 
   const ask = (text: string) => {
     const question = text.trim();
@@ -96,56 +113,84 @@ function ChatPageInner() {
     inputRef.current?.focus();
   };
 
+  const chooseScan = (id: string) => {
+    setMessages([]);
+    router.replace(`/dashboard/chat?scanId=${id}`);
+  };
+
+  const clearScan = () => {
+    setMessages([]);
+    router.replace("/dashboard/chat");
+  };
+
   const lastMessage = messages[messages.length - 1];
   const showTyping = isBusy && lastMessage?.role !== "assistant";
+  const suggestions = scan ? SCAN_SUGGESTIONS : GENERAL_SUGGESTIONS;
+  const recentScans = scans.slice(0, 4);
 
   return (
     <div className="flex flex-1 min-h-0 flex-col w-full max-w-2xl mx-auto">
       <div className="flex items-center justify-between gap-3 shrink-0 pb-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Ask AI</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Ask AI</h1>
           <p className="text-sm text-muted-foreground">
-            {scan ? "Advice for your latest scan" : "Ask a crop health question"}
+            {scan ? "Gemini will use this scan from MongoDB" : "Pick a scan, or ask a crop question"}
           </p>
         </div>
         {messages.length > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={startNewChat}
-            className="text-muted-foreground"
-          >
+          <Button variant="ghost" size="sm" onClick={startNewChat} className="text-muted-foreground">
             <RotateCcw className="mr-2 size-4" />
             New chat
           </Button>
         )}
       </div>
 
-      {scan && (
-        <Link
-          href={`/dashboard/scans/${scanId}`}
-          className="mb-3 flex items-center gap-3 rounded-2xl border bg-muted/40 px-4 py-3 text-sm hover:bg-muted/70 transition-colors"
-        >
-          <Leaf className="size-4 text-primary shrink-0" />
-          <div className="min-w-0">
-            <p className="font-medium truncate">{scan.disease}</p>
+      {scan ? (
+        <div className="mb-3 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/40">
+          <Leaf className="size-5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold truncate">{scanLabel(scan)}</p>
             <p className="text-xs text-muted-foreground truncate">
-              {[scan.detectedCrop, scan.severityGrade].filter(Boolean).join(" · ") || "Open scan report"}
+              {scanMeta(scan) || "This scan is attached to the chat"}
             </p>
           </div>
-          <span className="ml-auto text-xs text-primary font-medium shrink-0">View</span>
-        </Link>
-      )}
+          <Link href={`/dashboard/scans/${scanId}`} className="text-xs font-medium text-emerald-800 dark:text-emerald-300 shrink-0">
+            Report
+          </Link>
+          <button type="button" onClick={clearScan} className="text-muted-foreground hover:text-foreground" aria-label="Remove scan">
+            <X className="size-4" />
+          </button>
+        </div>
+      ) : recentScans.length > 0 ? (
+        <div className="mb-3 rounded-2xl border bg-muted/30 p-3">
+          <p className="text-sm font-medium mb-2">Use a scan from MongoDB</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {recentScans.map((item) => (
+              <button
+                key={String(item.id)}
+                type="button"
+                onClick={() => chooseScan(String(item.id))}
+                className="text-left rounded-xl border bg-background px-3 py-2 hover:border-primary hover:bg-primary/5 transition-colors"
+              >
+                <p className="text-sm font-medium truncate">{scanLabel(item)}</p>
+                <p className="text-xs text-muted-foreground truncate">{scanMeta(item) || "Open in Ask AI"}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex-1 min-h-0 overflow-y-auto rounded-3xl border bg-background">
         {messages.length === 0 ? (
           <div className="h-full flex flex-col justify-center p-6 sm:p-8">
-            <h2 className="text-lg font-semibold mb-1">What do you want to know?</h2>
+            <h2 className="text-lg font-semibold mb-1">
+              {scan ? `Ask about ${scanLabel(scan)}` : "What do you want to know?"}
+            </h2>
             <p className="text-sm text-muted-foreground mb-6">
-              Tap a question or type your own.
+              {scan ? "Tap a question. The answer uses your scan result." : "Tap a question or type your own."}
             </p>
             <div className="flex flex-col gap-2">
-              {SUGGESTIONS.map((suggestion) => (
+              {suggestions.map((suggestion) => (
                 <button
                   key={suggestion}
                   type="button"
@@ -199,7 +244,7 @@ function ChatPageInner() {
             )}
             {error && (
               <p className="text-sm text-destructive px-1">
-                Could not get an answer. Check your connection and try again.
+                Could not get an answer. Check your connection, Gemini key, and try again.
               </p>
             )}
             <div ref={messagesEndRef} />
@@ -213,7 +258,7 @@ function ChatPageInner() {
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Type your question"
+            placeholder={scan ? `Ask about ${scanLabel(scan)}` : "Type your question"}
             aria-label="Ask a crop health question"
             className="flex-1 h-11 bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
             disabled={isBusy}
@@ -238,7 +283,7 @@ function ChatPageInner() {
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div className="flex-1 min-h-0 flex items-center justify-center text-sm text-muted-foreground">Loading chat…</div>}>
+    <Suspense fallback={<div className="flex-1 min-h-0 flex items-center justify-center text-sm text-muted-foreground">Loading Ask AI…</div>}>
       <ChatPageInner />
     </Suspense>
   );

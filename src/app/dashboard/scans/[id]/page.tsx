@@ -56,10 +56,6 @@ export default function ScanResultPage() {
         },
     });
 
-    console.log("ScanResultPage scanId:", scanId);
-    console.log("ScanResultPage typeof scanId:", typeof scanId);
-    console.log("ScanResultPage scanId?.length:", scanId?.length);
-
     const {
         data: scan,
         isLoading,

@@ -1,19 +1,26 @@
 "use client";
 
-import Link from "next/link";
-import { Smartphone } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
 import UserMenu from "@/components/user-menu";
 
-interface DashboardHeaderProps {
-  title?: string;
-}
+const pageTitles: Array<{ match: (path: string) => boolean; title: string }> = [
+  { match: (path) => path.startsWith("/dashboard/chat"), title: "Ask AI" },
+  { match: (path) => path.startsWith("/dashboard/scans"), title: "Scans" },
+  { match: (path) => path.startsWith("/dashboard/fields"), title: "Community" },
+  { match: (path) => path.startsWith("/dashboard/farms"), title: "Farms" },
+  { match: (path) => path.startsWith("/dashboard/diseases"), title: "Diseases" },
+  { match: (path) => path.startsWith("/dashboard/settings"), title: "Settings" },
+  { match: (path) => path === "/dashboard", title: "Dashboard" },
+];
 
-export function DashboardHeader({ title }: DashboardHeaderProps) {
+export function DashboardHeader() {
+  const pathname = usePathname();
+  const title = pageTitles.find((item) => item.match(pathname))?.title;
+
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
       <SidebarTrigger className="-ml-1" />

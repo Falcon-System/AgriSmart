@@ -2,30 +2,31 @@ import { google } from "@ai-sdk/google";
 import { streamText, type UIMessage, convertToModelMessages } from "ai";
 import { NextResponse } from "next/server";
 import { getGeminiApiKey, isGeminiConfigured } from "@/lib/runtime-config";
-import { buildAdvisorSystemPrompt, loadScanForAdvisor } from "@/lib/scan-advisor";
+import {
+  buildAdvisorSystemPrompt,
+  loadScanForAdvisor,
+  readScanIdFromBody,
+} from "@/lib/scan-advisor";
 
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
   if (!isGeminiConfigured()) {
     return NextResponse.json(
-      { error: "Ask AI is not available yet. Please try again later." },
+      { error: "Ask AI is not available yet. Add a Gemini key to .env.local and restart the app." },
       { status: 503 }
     );
   }
 
   process.env.GOOGLE_GENERATIVE_AI_API_KEY = getGeminiApiKey();
 
-  const body = await req.json();
-  const messages = body.messages as UIMessage[];
-  const scanId = typeof body.scanId === "string" ? body.scanId : undefined;
+  const body = (await req.json()) as Record<string, unknown>;
+  const messages = (body.messages as UIMessage[]) || [];
+  const scanId = readScanIdFromBody(body);
 
-  let scan = null;
-  if (scanId) {
-    scan = await loadScanForAdvisor(scanId);
-    if (!scan) {
-      return NextResponse.json({ error: "Scan record not found." }, { status: 404 });
-    }
+  const scan = scanId ? await loadScanForAdvisor(scanId) : null;
+  if (scanId && !scan) {
+    console.warn("Ask AI: scan was not found in MongoDB", scanId);
   }
 
   try {
