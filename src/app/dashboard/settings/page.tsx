@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Save, Loader2, Check } from "lucide-react";
+import { Save, Loader2, Check, CircleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +27,17 @@ export default function SettingsPage() {
   const [currency, setCurrency] = useState("ETB");
 
   const settingsQuery = useQuery(orpc.settings.get.queryOptions());
+  const healthQuery = useQuery({
+    queryKey: ["setup-health"],
+    queryFn: async () => {
+      const response = await fetch("/api/health");
+      if (!response.ok) throw new Error("Could not load setup status");
+      return response.json() as Promise<{
+        mongo: { connected: boolean; database?: string };
+        gemini: { configured: boolean };
+      }>;
+    },
+  });
 
   useEffect(() => {
     if (settingsQuery.data) {
@@ -141,26 +152,28 @@ export default function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>AI Configuration</CardTitle>
+          <CardTitle>Local setup</CardTitle>
           <CardDescription>
-            Settings for the AI-powered features
+            MongoDB and Gemini must be ready before you scan or use Ask AI
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-            <div className="size-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-              <Check className="size-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div className="flex-1">
-              <p className="font-medium">Google Gemini AI</p>
-              <p className="text-sm text-muted-foreground">
-                Configured and ready for disease detection
-              </p>
-            </div>
-          </div>
+        <CardContent className="space-y-3">
+          <SetupStatusRow
+            title="MongoDB"
+            ok={healthQuery.data?.mongo.connected}
+            loading={healthQuery.isLoading}
+            readyText={`Connected to ${healthQuery.data?.mongo.database || "agrismart_local"}`}
+            missingText="Not connected. On your computer run: docker compose up -d"
+          />
+          <SetupStatusRow
+            title="Google Gemini"
+            ok={healthQuery.data?.gemini.configured}
+            loading={healthQuery.isLoading}
+            readyText="API key is set. Scans and Ask AI can use Gemini."
+            missingText="Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local, then restart pnpm dev."
+          />
           <p className="text-xs text-muted-foreground">
-            The AI model is pre-configured for this application. Contact your
-            administrator if you need to update the API key.
+            Create a key at aistudio.google.com/apikey. Do not put the key in the browser or commit it.
           </p>
         </CardContent>
       </Card>
@@ -177,6 +190,49 @@ export default function SettingsPage() {
           )}
           Save Changes
         </Button>
+      </div>
+    </div>
+  );
+}
+
+function SetupStatusRow({
+  title,
+  ok,
+  loading,
+  readyText,
+  missingText,
+}: {
+  title: string;
+  ok?: boolean;
+  loading: boolean;
+  readyText: string;
+  missingText: string;
+}) {
+  const ready = Boolean(ok);
+  return (
+    <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+      <div
+        className={`size-10 rounded-full flex items-center justify-center ${
+          loading
+            ? "bg-muted-foreground/10"
+            : ready
+              ? "bg-green-100 dark:bg-green-900"
+              : "bg-amber-100 dark:bg-amber-900"
+        }`}
+      >
+        {loading ? (
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        ) : ready ? (
+          <Check className="size-5 text-green-600 dark:text-green-400" />
+        ) : (
+          <CircleAlert className="size-5 text-amber-600 dark:text-amber-400" />
+        )}
+      </div>
+      <div className="flex-1">
+        <p className="font-medium">{title}</p>
+        <p className="text-sm text-muted-foreground">
+          {loading ? "Checking…" : ready ? readyText : missingText}
+        </p>
       </div>
     </div>
   );

@@ -1,21 +1,20 @@
 import { google } from "@ai-sdk/google";
 import { streamText, type UIMessage, convertToModelMessages } from "ai";
 import { NextResponse } from "next/server";
+import { getGeminiApiKey, isGeminiConfigured } from "@/lib/runtime-config";
 import { buildAdvisorSystemPrompt, loadScanForAdvisor } from "@/lib/scan-advisor";
 
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
-  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY && process.env.GEMINI_API_KEY) {
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
-  }
-
-  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+  if (!isGeminiConfigured()) {
     return NextResponse.json(
       { error: "Ask AI is not available yet. Please try again later." },
       { status: 503 }
     );
   }
+
+  process.env.GOOGLE_GENERATIVE_AI_API_KEY = getGeminiApiKey();
 
   const body = await req.json();
   const messages = body.messages as UIMessage[];

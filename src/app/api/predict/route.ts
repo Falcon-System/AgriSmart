@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { generateText, Output } from "ai";
 import { google } from "@ai-sdk/google";
 import { enrichPrediction, severityToNumber } from "@/lib/diseases";
+import { getGeminiApiKey, isGeminiConfigured } from "@/lib/runtime-config";
 import {
   cropScanResultSchema,
   gradeFromSeverity,
@@ -19,16 +20,12 @@ function predictionEndpoint() {
   return base.endsWith("/predict") ? base : `${base}/predict`;
 }
 
-function ensureGeminiKey() {
-  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY && process.env.GEMINI_API_KEY) {
-    process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
-  }
-}
-
 function hasGeminiKey() {
-  ensureGeminiKey();
-  const key = process.env.GOOGLE_GENERATIVE_AI_API_KEY || "";
-  return key.length > 20 && !key.includes("your-google-api-key");
+  const key = getGeminiApiKey();
+  if (key) {
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = key;
+  }
+  return isGeminiConfigured();
 }
 
 async function predictWithPython(imageFile: File) {

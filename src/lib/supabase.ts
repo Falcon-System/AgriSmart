@@ -108,6 +108,33 @@ async function ensureIndexes(db: MongoDatabase) {
   globalForMongo.mongoIndexesReady = true;
 }
 
+export async function getMongoStatus() {
+  const configured = Boolean(process.env.MONGODB_URI?.trim());
+  const db = await connectMongoIfConfigured();
+  if (!db) {
+    return {
+      configured,
+      connected: false,
+      database: process.env.MONGODB_DB || "agrismart_local",
+    };
+  }
+
+  try {
+    await db.command({ ping: 1 });
+    return {
+      configured: true,
+      connected: true,
+      database: db.databaseName,
+    };
+  } catch {
+    return {
+      configured: true,
+      connected: false,
+      database: db.databaseName,
+    };
+  }
+}
+
 async function connectMongoIfConfigured(): Promise<MongoDatabase | null> {
   if (globalForMongo.mongoDb) return globalForMongo.mongoDb;
   if (globalForMongo.mongoConnectPromise) return globalForMongo.mongoConnectPromise;

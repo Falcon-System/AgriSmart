@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "predict:server": "prediction-service/.venv/bin/uvicorn --app-dir prediction-service main:app --host 127.0.0.1 --port 8000",
+    "setup:local": "node scripts/setup-local.mjs",
+    "check:env": "node scripts/setup-local.mjs --check",
     "seed:local": "node scripts/seed-local.mjs"
   },
   "dependencies": {
