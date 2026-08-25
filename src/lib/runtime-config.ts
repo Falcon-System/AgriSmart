@@ -353,7 +353,7 @@ export function friendlyGeminiError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "");
 
   if (/API_KEY_INVALID|API key not valid|invalid api key|API key not found/i.test(message)) {
-    return "The Gemini API key is not valid. Put a real key in .env.local as GOOGLE_GENERATIVE_AI_API_KEY, then run pnpm dev:clean.";
+    return "Google rejected this API key. Create a new Gemini Auth key at https://aistudio.google.com/apikey, restrict it to the Gemini API, then save it in Settings. Maps keys and unrestricted Cloud keys will not work.";
   }
   if (/quota|RESOURCE_EXHAUSTED|429|rate.?limit/i.test(message)) {
     return "Gemini is busy or over quota. Wait a minute and try again.";

@@ -29,7 +29,7 @@ const SCAN_SUGGESTIONS = [
 
 function farmerFacingText(text: string) {
   if (/API[_ ]?key not valid|API_KEY_INVALID|GOOGLE_GENERATIVE_AI|GEMINI_API_KEY/i.test(text)) {
-    return "The Gemini API key is not valid. Put a real key in .env.local, then run pnpm dev:clean.";
+    return "Google rejected this API key. Create a new Gemini Auth key at aistudio.google.com/apikey, restrict it to the Gemini API, then save it in Settings.";
   }
   return text;
 }

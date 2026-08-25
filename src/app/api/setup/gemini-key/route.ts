@@ -41,6 +41,25 @@ function upsertEnvLocal(updates: Record<string, string>) {
   writeFileSync(filePath, text.endsWith("\n") ? text : `${text}\n`, { encoding: "utf8" });
 }
 
+async function verifyGeminiKey(key: string) {
+  const response = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=1", {
+    headers: { "x-goog-api-key": key },
+  });
+  if (response.ok) return { ok: true as const };
+  const body = await response.text();
+  if (/API_KEY_INVALID|API key not valid/i.test(body)) {
+    return {
+      ok: false as const,
+      error:
+        "Google rejected this key. Create a new Gemini Auth key at https://aistudio.google.com/apikey and restrict it to the Gemini API.",
+    };
+  }
+  return {
+    ok: false as const,
+    error: "Google did not accept this key. Check that Generative Language API is enabled for the project.",
+  };
+}
+
 export async function POST(req: Request) {
   if (!isLocalHost(req)) {
     return NextResponse.json({ error: "Gemini key setup is only allowed on your local computer." }, { status: 403 });
@@ -51,9 +70,14 @@ export async function POST(req: Request) {
 
   if (!key || isPlaceholderSecret(key)) {
     return NextResponse.json(
-      { error: "Paste a real Google AI Studio key. It usually starts with AIza." },
+      { error: "Paste a real Google AI Studio key. Create one at https://aistudio.google.com/apikey" },
       { status: 400 }
     );
+  }
+
+  const verified = await verifyGeminiKey(key);
+  if (!verified.ok) {
+    return NextResponse.json({ error: verified.error }, { status: 400 });
   }
 
   upsertEnvLocal({
