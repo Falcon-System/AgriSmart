@@ -110,8 +110,8 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                 disease: data.disease || "Unknown",
                 severity: typeof data.severity === 'number' ? data.severity : 50,
                 confidence: typeof data.confidence === 'number' ? data.confidence : 0,
-                treatment: data.treatment || "No treatment suggestions provided by AI.",
-                prevention: data.prevention || "No prevention suggestions provided by AI.",
+                treatment: data.treatment,
+                prevention: data.prevention,
             });
         } catch (err: any) {
             console.error("Analysis or Saving Error:", err);

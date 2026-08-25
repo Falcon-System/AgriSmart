@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev --port 3001",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "predict:mock": "node scripts/mock-predict-server.mjs"
   },
   "dependencies": {
     "@ai-sdk/devtools": "^0.0.2",

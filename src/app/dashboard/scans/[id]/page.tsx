@@ -35,7 +35,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import cassavaDiseases from "../../../../../cassava_diseases.json";
+import { findDisease, reliabilityFromConfidence, isPlaceholderAdvice } from "@/lib/diseases";
 
 export default function ScanResultPage() {
     const params = useParams();
@@ -77,10 +77,8 @@ export default function ScanResultPage() {
         }
     );
 
-    // Find the disease data from our database of diseases
-    const diseaseData = scan ? Object.values(cassavaDiseases).find(
-        d => d.name.toLowerCase() === scan.disease.toLowerCase()
-    ) : null;
+    const diseaseData = scan ? findDisease(scan.disease) : null;
+    const reliability = reliabilityFromConfidence(Number(scan?.confidence) || 0);
 
     if (isLoading) {
         return (
@@ -230,10 +228,10 @@ export default function ScanResultPage() {
                                 </div>
                                 <div className="flex-1">
                                     <div className="text-sm text-muted-foreground font-medium">AI Reliability</div>
-                                    <div className="text-2xl font-bold">Excellent</div>
+                                    <div className="text-2xl font-bold">{reliability.label}</div>
                                     <div className="flex gap-1 mt-2">
                                         {[1, 2, 3, 4, 5].map(i => (
-                                            <div key={i} className={cn("h-1.5 flex-1 rounded-full", i <= 4 ? "bg-primary" : "bg-primary/20")} />
+                                            <div key={i} className={cn("h-1.5 flex-1 rounded-full", i <= reliability.bars ? "bg-primary" : "bg-primary/20")} />
                                         ))}
                                     </div>
                                 </div>
@@ -287,7 +285,7 @@ export default function ScanResultPage() {
                                 </div>
                                 <div className="bg-blue-500/5 rounded-3xl p-6 border border-blue-500/10">
                                     <p className="text-zinc-700 dark:text-zinc-300 leading-relaxed font-medium">
-                                        {scan.treatment || "No treatment required for healthy plants. Continue regular monitoring and irrigation."}
+                                        {(!isPlaceholderAdvice(scan.treatment) && scan.treatment) || diseaseData?.treatment?.join(". ") || "No treatment required for healthy plants. Continue regular monitoring and irrigation."}
                                     </p>
                                 </div>
                             </div>
@@ -302,7 +300,7 @@ export default function ScanResultPage() {
                                 </div>
                                 <div className="bg-green-500/5 rounded-3xl p-6 border border-green-500/10">
                                     <p className="text-zinc-700 dark:text-zinc-300 leading-relaxed">
-                                        {scan.prevention || "Maintain good field hygiene and use disease-free planting materials for future cycles."}
+                                        {(!isPlaceholderAdvice(scan.prevention) && scan.prevention) || diseaseData?.prevention?.join(". ") || "Maintain good field hygiene and use disease-free planting materials for future cycles."}
                                     </p>
                                 </div>
                             </div>
@@ -322,7 +320,7 @@ export default function ScanResultPage() {
                                 <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">About this disease</h4>
                             </div>
                             <p className="text-sm text-muted-foreground leading-relaxed">
-                                This analysis is powered by AgriSmart's advanced computer vision models. While highly accurate, we recommend consulting with a local agricultural expert for confirmed diagnosis and specific chemical applications.
+                                {diseaseData?.recommendation || "This analysis is powered by AgriSmart's advanced computer vision models. While highly accurate, we recommend consulting with a local agricultural expert for confirmed diagnosis and specific chemical applications."}
                             </p>
                         </CardContent>
                     </Card>

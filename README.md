@@ -97,7 +97,8 @@ If `MONGODB_URI` is not set or MongoDB is unreachable, the app falls back to an 
 | MONGODB_DB | MongoDB database name to use (defaults to `agrismart_local`) | No |
 | GOOGLE_GENERATIVE_AI_API_KEY | Google AI API key for Gemini integration | Yes |
 | JWT_SECRET | Secret for JWT token signing | Yes |
-| NEXT_PUBLIC_BACKEND_URL | URL for the Python prediction backend | Yes |
+| NEXT_PUBLIC_BACKEND_URL | Base URL for the Python prediction backend | No |
+| PREDICTION_API_URL | Full predict endpoint, e.g. `http://localhost:8000/predict` | No |
 
 ### Running the Python Backend
 
@@ -112,6 +113,12 @@ pip install -r requirements.txt
 3. Start the Python server:
 ```bash
 python -m uvicorn main:app --reload --port 8000
+```
+
+If the real model server is not available yet, run a local stand-in:
+
+```bash
+node scripts/mock-predict-server.mjs
 ```
 
 ## 🚀 Development Workflow

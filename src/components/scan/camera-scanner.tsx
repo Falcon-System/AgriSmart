@@ -49,10 +49,14 @@ export function CameraScanner({ onScanComplete, hideResult }: CameraScannerProps
     const captureImage = useCallback(() => {
         const imageSrc = webcamRef.current?.getScreenshot();
         if (imageSrc) {
+            if (hideResult) {
+                onScanComplete?.(undefined as any, imageSrc);
+                return;
+            }
             setCapturedImage(imageSrc);
             setCameraActive(false);
         }
-    }, [webcamRef]);
+    }, [webcamRef, hideResult, onScanComplete]);
 
     const analyzeImage = useCallback(async () => {
         if (!capturedImage) return;
