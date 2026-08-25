@@ -176,6 +176,17 @@ export const appRouter = base.router({
                     confidence: z.number(),
                     treatment: z.string().optional(),
                     prevention: z.string().optional(),
+                    cropCategory: z.string().optional(),
+                    detectedCrop: z.string().optional(),
+                    isHealthy: z.boolean().optional(),
+                    severityGrade: z.string().optional(),
+                    symptoms: z.array(z.string()).optional(),
+                    source: z.string().optional(),
+                    treatmentPlan: z.object({
+                        chemical_control: z.array(z.string()).optional(),
+                        organic_biological: z.array(z.string()).optional(),
+                        cultural_practices: z.array(z.string()).optional(),
+                    }).optional(),
                 })
             )
             .handler(async ({ input, context }) => {
@@ -216,6 +227,13 @@ export const appRouter = base.router({
                             treatment: input.treatment,
                             prevention: input.prevention,
                             fieldId: input.fieldId,
+                            cropCategory: input.cropCategory,
+                            detectedCrop: input.detectedCrop,
+                            isHealthy: input.isHealthy,
+                            severityGrade: input.severityGrade,
+                            symptoms: input.symptoms,
+                            source: input.source,
+                            treatmentPlan: input.treatmentPlan,
                         })
                         .select()
                         .single();

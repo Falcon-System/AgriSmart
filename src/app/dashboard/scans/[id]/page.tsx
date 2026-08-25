@@ -111,9 +111,16 @@ export default function ScanResultPage() {
         );
     }
 
-    const isHealthy = scan.disease.toLowerCase().includes("healthy");
+    const isHealthy = scan.isHealthy === true || scan.disease.toLowerCase().includes("healthy");
     const severityColor = scan.severity > 60 ? "text-red-500" : scan.severity > 30 ? "text-yellow-500" : "text-green-500";
     const severityBg = scan.severity > 60 ? "bg-red-500/10" : scan.severity > 30 ? "bg-yellow-500/10" : "bg-green-500/10";
+    const treatmentPlanSections = [
+        { title: "Chemical control", items: scan.treatmentPlan?.chemical_control },
+        { title: "Organic / biological", items: scan.treatmentPlan?.organic_biological },
+        { title: "Cultural practices", items: scan.treatmentPlan?.cultural_practices },
+    ].filter((section) => section.items?.length);
+    const hasTreatmentPlan = treatmentPlanSections.length > 0;
+    const engineLabel = scan.source === "gemini" ? "Gemini Vision" : scan.source === "model" ? "Local cassava model" : null;
 
     return (
         <div className="container max-w-6xl py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -198,6 +205,11 @@ export default function ScanResultPage() {
                                         {isHealthy ? "Verified Healthy" : "Infection Detected"}
                                     </Badge>
                                     <h2 className="text-3xl font-bold">{scan.disease}</h2>
+                                    {(scan.detectedCrop || scan.cropCategory || engineLabel) && (
+                                        <p className="text-sm text-white/80">
+                                            {[scan.detectedCrop, scan.cropCategory, engineLabel].filter(Boolean).join(" · ")}
+                                        </p>
+                                    )}
                                 </div>
                                 <div className="text-right">
                                     <div className="text-sm font-medium opacity-80 mb-1">Confidence Score</div>
@@ -216,7 +228,7 @@ export default function ScanResultPage() {
                                 </div>
                                 <div className="flex-1">
                                     <div className="text-sm text-muted-foreground font-medium">Severity Level</div>
-                                    <div className="text-2xl font-bold">{scan.severity}%</div>
+                                    <div className="text-2xl font-bold">{scan.severityGrade || `${scan.severity}%`}</div>
                                     <Progress value={scan.severity} className={cn("h-1.5 mt-2", severityBg)} />
                                 </div>
                             </CardContent>
@@ -250,11 +262,11 @@ export default function ScanResultPage() {
                                     Our AI model has analyzed the morphological patterns on the leaf surface. The symptoms observed are highly consistent with <strong>{scan?.disease}</strong>.
                                 </p>
 
-                                {diseaseData?.symptoms && (
+                                {((scan.symptoms && scan.symptoms.length > 0) || diseaseData?.symptoms) && (
                                     <div className="space-y-3">
                                         <h4 className="text-sm font-bold uppercase tracking-wider text-primary/70">Observed Characteristics</h4>
                                         <div className="flex flex-wrap gap-2">
-                                            {diseaseData.symptoms.map((symptom, idx) => (
+                                            {(scan.symptoms?.length ? scan.symptoms : diseaseData?.symptoms || []).map((symptom: string, idx: number) => (
                                                 <Badge key={idx} variant="secondary" className="bg-primary/10 text-primary border-none py-1 px-3 rounded-full text-xs">
                                                     {symptom}
                                                 </Badge>
@@ -275,7 +287,24 @@ export default function ScanResultPage() {
                 <div className="lg:col-span-5 space-y-6">
                     <Card className="rounded-[2.5rem] border-none bg-white dark:bg-zinc-900 shadow-xl overflow-hidden">
                         <CardContent className="p-8 space-y-8">
+                            {hasTreatmentPlan && (
+                                <div className="space-y-6">
+                                    <h3 className="text-xl font-bold">Treatment protocol</h3>
+                                    {treatmentPlanSections.map((section) => (
+                                        <div key={section.title} className="space-y-2">
+                                            <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">{section.title}</h4>
+                                            <ul className="list-disc list-inside text-sm text-zinc-700 dark:text-zinc-300 space-y-1">
+                                                {section.items.map((item: string) => (
+                                                    <li key={item}>{item}</li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Treatment Section */}
+                            {!hasTreatmentPlan && (
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3">
                                     <div className="size-10 rounded-full bg-blue-500/10 text-blue-500 flex items-center justify-center shrink-0">
@@ -289,8 +318,10 @@ export default function ScanResultPage() {
                                     </p>
                                 </div>
                             </div>
+                            )}
 
                             {/* Prevention Section */}
+                            {!hasTreatmentPlan && (
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3">
                                     <div className="size-10 rounded-full bg-green-500/10 text-green-500 flex items-center justify-center shrink-0">
@@ -304,6 +335,7 @@ export default function ScanResultPage() {
                                     </p>
                                 </div>
                             </div>
+                            )}
 
                             <div className="pt-4">
                                 <Button className="w-full rounded-2xl h-14 text-lg font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95" onClick={() => router.push("/dashboard/chat")}>
@@ -320,7 +352,7 @@ export default function ScanResultPage() {
                                 <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">About this disease</h4>
                             </div>
                             <p className="text-sm text-muted-foreground leading-relaxed">
-                                {diseaseData?.recommendation || "This analysis is powered by AgriSmart's advanced computer vision models. While highly accurate, we recommend consulting with a local agricultural expert for confirmed diagnosis and specific chemical applications."}
+                                {diseaseData?.recommendation || "This analysis is powered by AgriSmart. Gemini Vision is the launch diagnosis engine; a local cassava classifier is used when no API key is configured. While highly accurate, we recommend consulting with a local agricultural expert for confirmed diagnosis and specific chemical applications."}
                             </p>
                         </CardContent>
                     </Card>

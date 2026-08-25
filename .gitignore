@@ -64,3 +64,6 @@ dev-dist
 
 # Python prediction service
 prediction-service/.venv/
+
+# Local scan uploads generated at runtime
+public/cassava_image/scan-*.jpg

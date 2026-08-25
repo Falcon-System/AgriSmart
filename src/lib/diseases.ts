@@ -83,7 +83,9 @@ export function severityToNumber(severity: unknown, fallback = 50): number {
       medium: 50,
       moderate: 50,
       high: 75,
+      severe: 75,
       "very high": 90,
+      critical: 90,
     };
     const mapped = severityMap[severity.trim().toLowerCase()];
     if (mapped !== undefined) return mapped;
