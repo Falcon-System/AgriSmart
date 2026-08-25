@@ -7,6 +7,7 @@ import {
   publicUser,
   verifyPassword,
 } from "@/lib/auth";
+import { ensureDemoDataset } from "@/lib/demo-data";
 
 const userSchema = z.object({
   username: z.string().min(1, "Username is required").max(100).optional(),
@@ -17,6 +18,7 @@ const userSchema = z.object({
 export async function POST(req: Request) {
   try {
     await ensureDemoFarmer();
+    await ensureDemoDataset();
 
     const body = await req.json();
     const parsed = userSchema.parse(body);

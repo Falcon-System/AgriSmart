@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Context } from "@/api/context";
 import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
+import { ensureDemoDataset } from "@/lib/demo-data";
 
 // Create the base os with context
 const base = os.$context<Context>();
@@ -157,6 +158,7 @@ export const appRouter = base.router({
 
     scans: base.router({
         list: base.handler(async ({ context }) => {
+            await ensureDemoDataset();
             const { data, error } = await context.db
                 .from("Scan")
                 .select("*")
@@ -295,6 +297,7 @@ export const appRouter = base.router({
 
     farms: base.router({
         list: base.handler(async ({ context }) => {
+            await ensureDemoDataset();
             const { data, error } = await context.db
                 .from("Farm")
                 .select("*");
@@ -434,6 +437,7 @@ export const appRouter = base.router({
 
     community: base.router({
         list: base.handler(async ({ context }) => {
+            await ensureDemoDataset();
             const { data: posts, error } = await context.db
                 .from("CommunityPost")
                 .select("*")

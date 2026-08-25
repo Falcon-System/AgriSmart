@@ -139,11 +139,19 @@ export default function FieldsPage() {
           <div className="size-20 bg-muted rounded-full flex items-center justify-center mb-4">
             <Search className="size-10 text-muted-foreground opacity-50" />
           </div>
-          <p className="text-muted-foreground font-bold text-lg">No results found</p>
-          <p className="text-muted-foreground/60 text-sm max-w-xs mx-auto mt-1 mb-6">We couldn't find any posts matching "{search}". Try a different keyword.</p>
-          <Button variant="outline" onClick={() => setSearch("")} className="rounded-full px-8 font-black border-2 transition-all active:scale-95">
-            Clear Search
-          </Button>
+          <p className="text-muted-foreground font-bold text-lg">
+            {search ? "No results found" : "No community posts yet"}
+          </p>
+          <p className="text-muted-foreground/60 text-sm max-w-xs mx-auto mt-1 mb-6">
+            {search
+              ? `We couldn't find any posts matching "${search}". Try a different keyword.`
+              : "Sign in, then refresh. Demo farmer posts load automatically after login."}
+          </p>
+          {search && (
+            <Button variant="outline" onClick={() => setSearch("")} className="rounded-full px-8 font-black border-2 transition-all active:scale-95">
+              Clear Search
+            </Button>
+          )}
         </div>
       )}
 
