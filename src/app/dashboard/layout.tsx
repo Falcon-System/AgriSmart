@@ -19,7 +19,11 @@ export default function DashboardLayout({
   }, []);
 
   if (!mounted) {
-    return null; // or a loading skeleton
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
+        Loading AgriSmart...
+      </div>
+    );
   }
 
   return (

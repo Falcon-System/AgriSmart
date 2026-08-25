@@ -32,12 +32,14 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
           headers: {
             "Content-Type": "application/json",
           },
+          credentials: "include",
           body: JSON.stringify(value),
         });
         const data = await response.json();
         if (response.ok) {
           toast.success("Account created successfully!");
           router.push("/dashboard");
+          router.refresh();
         } else {
           toast.error(data.message || "Something went wrong!");
         }
@@ -235,7 +237,7 @@ export default function SignUpForm({ onSwitchToSignIn }: { onSwitchToSignIn: () 
             <Button
               type="submit"
               className="w-full"
-              disabled={!state.canSubmit || state.isSubmitting}
+              disabled={isLoading || state.isSubmitting}
             >
               {state.isSubmitting ? "Creating account..." : "Sign Up"}
             </Button>
