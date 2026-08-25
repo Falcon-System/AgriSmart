@@ -16,8 +16,9 @@ const geistMono = Roboto_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "AgriSmart - AI-Powered Cassava Disease Detection",
-  description: "Protect your cassava crops with AI-powered disease detection and treatment recommendations",
+  title: "AgriSmart - Multi-Crop Horticultural AI Diagnostics",
+  description:
+    "Protect horticultural crops with AI-powered disease detection across cassava, solanaceous vegetables, and tree fruits.",
   manifest: "/manifest.webmanifest",
   icons: {
     icon: "/favicon/favicon-96x96.png",

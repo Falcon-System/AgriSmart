@@ -28,8 +28,8 @@ export default function LoginPage() {
       </div>
 
       <p className="mt-8 text-sm text-muted-foreground text-center max-w-md">
-        AI-powered cassava disease detection for farmers across Africa.
-        Protect your crops with instant diagnosis.
+        AI-powered diagnostics for cassava, solanaceous vegetables, and tree fruits.
+        Protect your harvest with instant diagnosis and targeted treatment.
       </p>
     </div>
   );

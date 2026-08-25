@@ -54,7 +54,7 @@ export default function DashboardPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
         <p className="text-muted-foreground">
-          Welcome to AgriSmart - AI-powered cassava disease detection
+          Welcome to AgriSmart — multi-crop horticultural AI diagnostics and farm management
         </p>
       </div>
 

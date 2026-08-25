@@ -32,7 +32,7 @@ export default function DiseasesPage() {
           Disease Catalog
         </h1>
         <p className="text-lg text-muted-foreground max-w-2xl">
-          Comprehensive reference guide for identifying cassava diseases, understanding their impact, and implementing effective treatments.
+          Cassava reference guide plus scan coverage for root & tuber crops, solanaceous vegetables, and tree fruits.
         </p>
       </div>
 
