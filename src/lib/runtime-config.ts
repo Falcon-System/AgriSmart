@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "fs";
-import { dirname, join } from "path";
+import { basename, dirname, join } from "path";
 import { parse as parseDotenv } from "dotenv";
 
 const PLACEHOLDER_SECRET =
@@ -11,6 +11,13 @@ const GEMINI_ENV_NAMES = [
   "GOOGLE_API_KEY",
 ] as const;
 
+export type GeminiVarProbe = {
+  file: string;
+  name: string;
+  empty: boolean;
+  length: number;
+};
+
 export type GeminiKeyStatus = {
   configured: boolean;
   reason: "ok" | "missing" | "placeholder" | "too_short";
@@ -21,6 +28,7 @@ export type GeminiKeyStatus = {
   cwd: string;
   filesFound: string[];
   keyNamesFound: string[];
+  variableStatus: GeminiVarProbe[];
 };
 
 function sanitizeSecret(value?: string | null) {
@@ -56,23 +64,62 @@ function isGeminiEnvName(name: string) {
   );
 }
 
-function readEnvFile(filePath: string) {
-  const values: Record<string, string> = {};
-  if (!existsSync(filePath)) return values;
+function envRank(filePath: string) {
+  const name = basename(filePath).toLowerCase();
+  if (name === ".env.local" || name === ".env.local.txt") return 2;
+  if (name === ".env") return 1;
+  return 0;
+}
 
+function readTextFile(filePath: string) {
   const buffer = readFileSync(filePath);
-  const text =
-    buffer[0] === 0xff && buffer[1] === 0xfe
-      ? buffer.toString("utf16le")
-      : buffer.toString("utf8").replace(/^\uFEFF/, "");
+  if (buffer[0] === 0xff && buffer[1] === 0xfe) return buffer.toString("utf16le");
+  return buffer.toString("utf8").replace(/^\uFEFF/, "");
+}
+
+function parseEnvWithContinuation(text: string) {
+  const values: Record<string, string> = {};
+  const lines = text.split(/\r?\n/);
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i].trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const match = line.match(/^(?:export\s+|set\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$/);
+    if (!match) continue;
+
+    let value = sanitizeSecret(match[2].replace(/\s+#.*$/, ""));
+    if (!value) {
+      for (let j = i + 1; j < lines.length && j <= i + 4; j += 1) {
+        const next = lines[j].trim();
+        if (!next || next.startsWith("#")) continue;
+        if (/^(?:export\s+|set\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=/.test(next)) break;
+        const extracted = extractGoogleApiKey(sanitizeSecret(next));
+        if (extracted) {
+          value = extracted;
+          break;
+        }
+      }
+    }
+
+    values[match[1]] = sanitizeSecret(value);
+  }
 
   const parsed = parseDotenv(text);
   for (const [rawName, rawValue] of Object.entries(parsed)) {
-    const name = rawName.trim().replace(/^\uFEFF/, "");
+    const name = rawName.trim();
+    const value = sanitizeSecret(rawValue);
     if (!name) continue;
-    values[name] = sanitizeSecret(rawValue);
+    if (!values[name] && value) values[name] = value;
+    if (values[name] === undefined) values[name] = value;
   }
+
   return values;
+}
+
+function readEnvFile(filePath: string) {
+  if (!existsSync(filePath)) return {};
+  return parseEnvWithContinuation(readTextFile(filePath));
 }
 
 function discoverEnvFiles() {
@@ -98,23 +145,46 @@ function discoverEnvFiles() {
   }
 
   for (const folder of dirs) {
+    add(join(folder, ".env"));
     add(join(folder, ".env.local"));
     add(join(folder, ".env.local.txt"));
-    add(join(folder, ".env"));
   }
-  return files;
+
+  return files.sort((a, b) => envRank(a) - envRank(b));
+}
+
+function assignIfValue(target: Record<string, string>, source: Record<string, string>) {
+  for (const [name, value] of Object.entries(source)) {
+    if (value) target[name] = value;
+  }
 }
 
 function mergedFileEnv() {
   const files = discoverEnvFiles();
   const values: Record<string, string> = {};
+  const variableStatus: GeminiVarProbe[] = [];
+
   for (const file of files) {
-    Object.assign(values, readEnvFile(file));
+    const parsed = readEnvFile(file);
+    for (const [name, value] of Object.entries(parsed)) {
+      if (!isGeminiEnvName(name) && !/key|gemini|google|mongo|jwt/i.test(name)) continue;
+      if (isGeminiEnvName(name) || /google|gemini|key/i.test(name)) {
+        const extracted = extractGoogleApiKey(value);
+        variableStatus.push({
+          file: basename(file),
+          name,
+          empty: !extracted,
+          length: extracted.length,
+        });
+      }
+    }
+    assignIfValue(values, parsed);
   }
-  return { files, values };
+
+  return { files, values, variableStatus };
 }
 
-function inspectCandidate(name: string, value: string, source: string): Omit<GeminiKeyStatus, "cwd" | "filesFound" | "keyNamesFound"> {
+function inspectCandidate(name: string, value: string, source: string): Omit<GeminiKeyStatus, "cwd" | "filesFound" | "keyNamesFound" | "variableStatus"> {
   const key = extractGoogleApiKey(sanitizeSecret(value));
   const looksLikeGoogleKey = /^AIza[0-9A-Za-z_\-]{20,}$/.test(key);
 
@@ -125,7 +195,7 @@ function inspectCandidate(name: string, value: string, source: string): Omit<Gem
       source,
       keyLength: 0,
       looksLikeGoogleKey: false,
-      hint: `Found ${name}, but it is empty.`,
+      hint: `${name} is in the env file, but the value is empty. Put the AIza key on the same line: ${name}="AIza..."`,
     };
   }
 
@@ -173,39 +243,58 @@ function inspectCandidate(name: string, value: string, source: string): Omit<Gem
 }
 
 function withFileMeta(
-  status: Omit<GeminiKeyStatus, "cwd" | "filesFound" | "keyNamesFound">,
+  status: Omit<GeminiKeyStatus, "cwd" | "filesFound" | "keyNamesFound" | "variableStatus">,
   files: string[],
-  values: Record<string, string>
+  values: Record<string, string>,
+  variableStatus: GeminiVarProbe[]
 ): GeminiKeyStatus {
   return {
     ...status,
     cwd: process.cwd(),
     filesFound: files,
     keyNamesFound: Object.keys(values).filter((name) => /key|gemini|google|mongo|jwt/i.test(name)),
+    variableStatus,
   };
 }
 
 export function getGeminiKeyStatus(): GeminiKeyStatus {
-  const { files, values } = mergedFileEnv();
+  const { files, values, variableStatus } = mergedFileEnv();
   const candidates: Array<{ name: string; value: string; source: string }> = [];
-
-  for (const name of Object.keys(process.env)) {
-    if (!isGeminiEnvName(name) || !process.env[name]) continue;
-    candidates.push({ name, value: process.env[name] as string, source: `process:${name}` });
-  }
 
   for (const name of Object.keys(values)) {
     if (!isGeminiEnvName(name) || !values[name]) continue;
     candidates.push({ name, value: values[name], source: `file:${name}` });
   }
 
+  for (const name of Object.keys(process.env)) {
+    if (!isGeminiEnvName(name) || !process.env[name]) continue;
+    candidates.push({ name, value: process.env[name] as string, source: `process:${name}` });
+  }
+
   for (const candidate of candidates) {
     const status = inspectCandidate(candidate.name, candidate.value, candidate.source);
-    if (status.configured) return withFileMeta(status, files, values);
+    if (status.configured) return withFileMeta(status, files, values, variableStatus);
   }
 
   if (candidates.length > 0) {
-    return withFileMeta(inspectCandidate(candidates[0].name, candidates[0].value, candidates[0].source), files, values);
+    return withFileMeta(inspectCandidate(candidates[0].name, candidates[0].value, candidates[0].source), files, values, variableStatus);
+  }
+
+  const namedButEmpty = variableStatus.some((item) => isGeminiEnvName(item.name) && item.empty);
+  if (namedButEmpty) {
+    return withFileMeta(
+      {
+        configured: false,
+        reason: "missing",
+        source: "GOOGLE_GENERATIVE_AI_API_KEY",
+        keyLength: 0,
+        looksLikeGoogleKey: false,
+        hint: 'GOOGLE_GENERATIVE_AI_API_KEY is present but empty. Put the key on the same line in .env.local, for example GOOGLE_GENERATIVE_AI_API_KEY="AIza..."',
+      },
+      files,
+      values,
+      variableStatus
+    );
   }
 
   if (files.length === 0) {
@@ -219,7 +308,8 @@ export function getGeminiKeyStatus(): GeminiKeyStatus {
         hint: `No .env.local file found. Create it next to package.json in ${process.cwd()}`,
       },
       files,
-      values
+      values,
+      variableStatus
     );
   }
 
@@ -230,10 +320,11 @@ export function getGeminiKeyStatus(): GeminiKeyStatus {
       source: null,
       keyLength: 0,
       looksLikeGoogleKey: false,
-      hint: "Found an env file, but it has no GOOGLE_GENERATIVE_AI_API_KEY or GEMINI_API_KEY line. Put the key next to package.json, not in a backend folder.",
+      hint: "Found an env file, but it has no GOOGLE_GENERATIVE_AI_API_KEY or GEMINI_API_KEY line.",
     },
     files,
-    values
+    values,
+    variableStatus
   );
 }
 
@@ -242,7 +333,7 @@ export function getGeminiApiKey() {
   if (!status.configured) return "";
 
   const { values } = mergedFileEnv();
-  const pool = { ...values, ...process.env };
+  const pool = { ...process.env, ...values };
   for (const name of Object.keys(pool)) {
     if (!isGeminiEnvName(name)) continue;
     const value = extractGoogleApiKey(sanitizeSecret(pool[name]));
