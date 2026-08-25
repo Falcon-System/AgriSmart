@@ -1,0 +1,136 @@
+{
+    "cassava_bacterial_blight": {
+        "name": "Cassava Bacterial Blight (CBB)",
+        "short_name": "CBB",
+        "severity": "High",
+        "symptoms": [
+            "Water-soaked angular leaf spots",
+            "Leaf wilting and drying",
+            "Brown streaks on stems",
+            "Dieback of shoots",
+            "Leaves may fall off early"
+        ],
+        "causes": [
+            "Bacteria: Xanthomonas axonopodis pv. manihotis",
+            "Spread by rain splash and wind",
+            "Use of infected planting materials",
+            "Poor field sanitation"
+        ],
+        "treatment": [
+            "Remove and destroy infected plants",
+            "Use disease-free planting cuttings",
+            "Apply copper-based bactericides if available",
+            "Avoid working in wet fields"
+        ],
+        "prevention": [
+            "Plant resistant cassava varieties",
+            "Rotate crops",
+            "Disinfect tools before use",
+            "Maintain proper field hygiene"
+        ],
+        "recommendation": "Immediate action required. Remove infected plants and replant with certified disease-free cuttings."
+    },
+    "cassava_mosaic_disease": {
+        "name": "Cassava Mosaic Disease (CMD)",
+        "short_name": "CMD",
+        "severity": "Very High",
+        "symptoms": [
+            "Mosaic or mottled leaf patterns",
+            "Yellow and green patches on leaves",
+            "Distorted and twisted leaves",
+            "Stunted plant growth",
+            "Reduced tuber yield"
+        ],
+        "causes": [
+            "Cassava mosaic viruses (CMV)",
+            "Transmitted by whiteflies",
+            "Infected planting cuttings"
+        ],
+        "treatment": [
+            "No chemical cure available",
+            "Uproot and destroy infected plants",
+            "Control whitefly population"
+        ],
+        "prevention": [
+            "Use CMD-resistant cassava varieties",
+            "Plant certified virus-free cuttings",
+            "Early detection and removal",
+            "Control insect vectors"
+        ],
+        "recommendation": "Highly destructive disease. Use resistant varieties and remove infected plants immediately."
+    },
+    "cassava_brown_streak_disease": {
+        "name": "Cassava Brown Streak Disease (CBSD)",
+        "short_name": "CBSD",
+        "severity": "Very High",
+        "symptoms": [
+            "Yellow blotches on leaves",
+            "Brown streaks on stems",
+            "Brown necrotic lesions in tubers",
+            "Root rot and unusable roots"
+        ],
+        "causes": [
+            "Cassava brown streak virus",
+            "Spread by whiteflies",
+            "Infected planting materials"
+        ],
+        "treatment": [
+            "No direct chemical treatment",
+            "Remove infected plants",
+            "Destroy infected tubers"
+        ],
+        "prevention": [
+            "Use CBSD-resistant varieties",
+            "Plant virus-free cuttings",
+            "Control whiteflies",
+            "Monitor fields regularly"
+        ],
+        "recommendation": "Serious threat to food security. Immediate removal and replanting recommended."
+    },
+    "cassava_green_mottle": {
+        "name": "Cassava Green Mottle Disease",
+        "short_name": "CGM",
+        "severity": "Medium",
+        "symptoms": [
+            "Light green mottling on leaves",
+            "Mild leaf distortion",
+            "Reduced photosynthesis"
+        ],
+        "causes": [
+            "Viral infection",
+            "Use of infected planting materials"
+        ],
+        "treatment": [
+            "No chemical treatment available",
+            "Remove infected plants"
+        ],
+        "prevention": [
+            "Use healthy cuttings",
+            "Plant resistant varieties",
+            "Early disease detection"
+        ],
+        "recommendation": "Monitor closely. Remove infected plants to prevent spread."
+    },
+    "cassava_healthy": {
+        "name": "Healthy Cassava Leaf",
+        "short_name": "Healthy",
+        "severity": "None",
+        "symptoms": [
+            "Uniform green leaves",
+            "Normal leaf shape",
+            "Strong plant growth"
+        ],
+        "causes": [
+            "Good agronomic practices",
+            "Healthy planting materials"
+        ],
+        "treatment": [
+            "No treatment required"
+        ],
+        "prevention": [
+            "Continue good farming practices",
+            "Monitor crops regularly"
+        ],
+        "recommendation": "Plant is healthy. Maintain proper field management."
+    }
+}

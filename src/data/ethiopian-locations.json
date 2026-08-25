@@ -1,0 +1,117 @@
+{
+  "country": "Ethiopia",
+  "iso_code": "ET",
+  "regions": [
+    {
+      "name": "Addis Ababa",
+      "type": "City Administration",
+      "cities": ["Addis Ababa"]
+    },
+    {
+      "name": "Afar",
+      "type": "Regional State",
+      "cities": ["Semera", "Asaita", "Awash", "Dubti", "Logiya"]
+    },
+    {
+      "name": "Amhara",
+      "type": "Regional State",
+      "cities": [
+        "Bahir Dar",
+        "Gondar",
+        "Dessie",
+        "Debre Markos",
+        "Debre Birhan",
+        "Woldia",
+        "Kombolcha",
+        "Debre Tabor",
+        "Finote Selam"
+      ]
+    },
+    {
+      "name": "Benishangul-Gumuz",
+      "type": "Regional State",
+      "cities": ["Assosa", "Metekel", "Bambasi", "Kamashi"]
+    },
+    {
+      "name": "Dire Dawa",
+      "type": "City Administration",
+      "cities": ["Dire Dawa"]
+    },
+    {
+      "name": "Gambela",
+      "type": "Regional State",
+      "cities": ["Gambela", "Abobo", "Itang"]
+    },
+    {
+      "name": "Harari",
+      "type": "Regional State",
+      "cities": ["Harar"]
+    },
+    {
+      "name": "Oromia",
+      "type": "Regional State",
+      "cities": [
+        "Adama",
+        "Jimma",
+        "Nekemte",
+        "Shashamane",
+        "Bishoftu",
+        "Ambo",
+        "Asella",
+        "Robe",
+        "Fiche",
+        "Bale Robe",
+        "Goba",
+        "Metu",
+        "Dembi Dolo"
+      ]
+    },
+    {
+      "name": "Sidama",
+      "type": "Regional State",
+      "cities": ["Hawassa", "Yirgalem", "Aleta Wendo"]
+    },
+    {
+      "name": "Somali",
+      "type": "Regional State",
+      "cities": [
+        "Jijiga",
+        "Gode",
+        "Kebri Dehar",
+        "Degehabur",
+        "Warder",
+        "Shilabo"
+      ]
+    },
+    {
+      "name": "South West Ethiopia Peoples",
+      "type": "Regional State",
+      "cities": ["Bonga", "Mizan Teferi", "Tepi"]
+    },
+    {
+      "name": "Southern Nations, Nationalities and Peoples (SNNPR)",
+      "type": "Regional State",
+      "cities": [
+        "Arba Minch",
+        "Wolaita Sodo",
+        "Dilla",
+        "Sawla",
+        "Jinka",
+        "Hossana",
+        "Butajira"
+      ]
+    },
+    {
+      "name": "Tigray",
+      "type": "Regional State",
+      "cities": [
+        "Mekelle",
+        "Axum",
+        "Adigrat",
+        "Shire",
+        "Humera",
+        "Wukro"
+      ]
+    }
+  ]
+}

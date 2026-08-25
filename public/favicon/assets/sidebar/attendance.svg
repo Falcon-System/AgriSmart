@@ -1,0 +1,23 @@
+<svg
+    width="20"
+    height="20"
+    fill="currentColor"
+    stroke="currentColor"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    stroke-width="1.8"
+    viewBox="0 0 24 24"
+    xmlns="http://www.w3.org/2000/svg"
+>
+    <path d="M8.5 2h-5A1.5 1.5 0 0 0 2 3.5v17A1.5 1.5 0 0 0 3.5 22h17a1.5 1.5 0 0 0 1.5-1.5v-17A1.5 1.5 0 0 0 20.5 2h-12Z"></path>
+    <path d="M11.5 8.5H22"></path>
+    <path d="M2 8.5h4.5"></path>
+    <path d="M17.5 15.5H22"></path>
+    <path d="M3 15.5h9.5"></path>
+    <path d="M8.5 10.5V22"></path>
+    <path d="M15.5 2v11.5"></path>
+    <path d="M15.5 17.5V22"></path>
+    <path d="M8.5 2v4.5"></path>
+    <path d="M17.5 15.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"></path>
+    <path d="M10.5 8.5a2 2 0 1 1-4 0 2 2 0 0 1 4 0Z"></path>
+</svg>
