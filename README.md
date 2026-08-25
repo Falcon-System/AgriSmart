@@ -159,6 +159,7 @@ Open your browser and navigate to `http://localhost:3001`
 | Command | Description |
 |---------|-------------|
 | `pnpm dev` | Start development server on port 3001 |
+| `pnpm dev:clean` | Clear the Next.js cache and start the server (use this after changing `.env.local`) |
 | `pnpm setup:local` | Start MongoDB, wait for it, and seed demo data |
 | `pnpm check:env` | Check MongoDB without reseeding |
 | `pnpm seed:local` | Reload demo farmers, farms, posts, and scans |
@@ -297,7 +298,11 @@ This project is licensed under the MIT License.
 
 #### 3. Gemini or prediction unavailable
 - **Issue**: Ask AI says it is unavailable, or scans skip Gemini
-- **Solution**: Put a real Google AI Studio key in `.env.local` as `GOOGLE_GENERATIVE_AI_API_KEY`, then restart `pnpm dev`. Placeholder text such as `your-google-api-key-here` is ignored. The Python fallback is optional: `pnpm predict:server`.
+- **Solution**: Put a real Google AI Studio key in `.env.local` as `GOOGLE_GENERATIVE_AI_API_KEY`, then stop `pnpm dev` and start it again. Placeholder text such as `your-google-api-key-here` is ignored. The Python fallback is optional: `pnpm predict:server`.
+
+#### 4. "Module factory is not available" after inserting the Gemini key
+- **Issue**: Next.js shows a Runtime Error about `boundary-components.js` or `module factory is not available` right after you save `.env.local`
+- **Solution**: This is a hot-reload crash, not a bad API key. Stop the server with Ctrl+C, then run `pnpm dev:clean` and hard-refresh the browser.
 
 ---
 

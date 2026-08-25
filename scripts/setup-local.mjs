@@ -94,14 +94,15 @@ Gemini key is not set yet.
 2. Create an API key
 3. Put it in .env.local as:
    GOOGLE_GENERATIVE_AI_API_KEY="AIza..."
-4. Restart the app with pnpm dev
+4. Stop pnpm dev if it is running (Ctrl+C), then start it with pnpm dev
+   If the browser shows "module factory is not available", run: pnpm dev:clean
 `);
   }
 
   console.log(`
 Local checklist
 - MongoDB: ready
-- Gemini: ${geminiReady ? "ready" : "add your key, then restart pnpm dev"}
+- Gemini: ${geminiReady ? "ready" : "add your key, stop pnpm dev, then start it again"}
 - App: pnpm dev → http://localhost:3001
 - Login: farmer / FarmDemo123
 - Status: http://localhost:3001/api/health

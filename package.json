@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3001",
+    "dev": "next dev --port 3001 --webpack",
+    "dev:turbo": "next dev --port 3001 --turbopack",
+    "dev:clean": "rm -rf .next && next dev --port 3001 --webpack",
     "build": "next build",
     "start": "next start",
     "predict:server": "prediction-service/.venv/bin/uvicorn --app-dir prediction-service main:app --host 127.0.0.1 --port 8000",
