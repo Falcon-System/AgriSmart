@@ -293,9 +293,9 @@ export function CameraScanner({ onScanComplete, hideResult }: CameraScannerProps
                         <div className="size-24 mx-auto rounded-full bg-primary/10 flex items-center justify-center">
                             <Camera className="size-12 text-primary" />
                         </div>
-                        <h2 className="text-2xl font-bold">Scan Cassava Leaf</h2>
+                        <h2 className="text-2xl font-bold">Scan Crop</h2>
                         <p className="text-muted-foreground text-sm max-w-xs">
-                            Take a photo of a cassava leaf to detect diseases and get treatment recommendations
+                            Take a photo of a leaf, fruit, or stem to detect diseases and get treatment recommendations
                         </p>
                     </div>
 
