@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { Send, ImageIcon, Loader2, Trash2 } from "lucide-react";
@@ -14,21 +15,58 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-export default function ChatPage() {
+function ChatPageInner() {
+  const searchParams = useSearchParams();
   const [input, setInput] = useState("");
   const [imageAttachment, setImageAttachment] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const scanContext = useMemo(() => {
+    const disease = searchParams.get("disease");
+    if (!disease) return null;
+    return {
+      crop: searchParams.get("crop") || undefined,
+      category: searchParams.get("category") || undefined,
+      disease,
+      severity: searchParams.get("severity") || undefined,
+      isHealthy: searchParams.get("healthy") || undefined,
+      symptoms: searchParams.get("symptoms") || undefined,
+    };
+  }, [searchParams]);
+
+  const scanContextRef = useRef(scanContext);
+  scanContextRef.current = scanContext;
+
   const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/ai",
+      prepareSendMessagesRequest: ({ id, messages, body }) => ({
+        body: {
+          ...body,
+          id,
+          messages,
+          scanContext: scanContextRef.current,
+        },
+      }),
     }),
   });
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (!scanContext) return;
+    const key = `agrismart-scan-chat:${searchParams.get("scanId") || scanContext.disease}`;
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    const cropLabel = scanContext.crop || "plant";
+    const severityLabel = scanContext.severity ? ` Severity is ${scanContext.severity}.` : "";
+    sendMessage({
+      text: `I just scanned a ${cropLabel}${scanContext.category ? ` (${scanContext.category})` : ""}. The diagnosis was ${scanContext.disease}.${severityLabel} Explain what this means and what I should do next.`,
+    });
+  }, [scanContext, searchParams, sendMessage]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -71,7 +109,7 @@ export default function ChatPage() {
           </div>
           <div className="text-muted-foreground text-sm flex items-center gap-1.5">
             <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Your expert assistant for cassava health
+            Your expert assistant for cassava, tomato, pepper, and fruit-tree health
           </div>
         </div>
         {messages.length > 0 && (
@@ -103,13 +141,13 @@ export default function ChatPage() {
               </div>
               <h2 className="text-2xl font-bold mb-3 tracking-tight">How can I help you today?</h2>
               <p className="text-muted-foreground max-w-sm text-sm leading-relaxed mb-10">
-                I'm specialized in cassava farming and disease management. Ask me about symptoms, varieties, or treatments.
+                Ask about cassava, tomato, pepper, mango, and other supported crops — symptoms, treatments, or field practices.
               </p>
               <div className="grid gap-3 sm:grid-cols-2 max-w-xl w-full">
                 {[
                   "How to identify Cassava Mosaic Disease?",
-                  "Best organic treatments for Green Mites",
-                  "Explain CBSD symptoms on roots",
+                  "Best organic treatments for tomato blight",
+                  "Explain mango anthracnose symptoms",
                   "Fertilization schedule for cassava",
                 ].map((suggestion) => (
                   <Button
@@ -230,7 +268,7 @@ export default function ChatPage() {
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about cassava health..."
+                placeholder="Ask about crop health..."
                 className="h-12 flex-1 bg-muted/40 border-border/40 rounded-2xl px-5 focus-visible:ring-primary/20 focus-visible:border-primary/30 transition-all pr-12"
                 disabled={isStreaming}
               />
@@ -254,5 +292,13 @@ export default function ChatPage() {
         </div>
       </Card>
     </div>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={<div className="flex-1 min-h-0" />}>
+      <ChatPageInner />
+    </Suspense>
   );
 }

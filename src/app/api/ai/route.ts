@@ -3,32 +3,55 @@ import { streamText, type UIMessage, convertToModelMessages } from "ai";
 
 export const maxDuration = 60;
 
-const systemPrompt = `You are AgriSmart AI, an expert agricultural assistant specializing STRICTLY in cassava farming and cassava leaf disease management.
+type ScanContext = {
+  crop?: string;
+  category?: string;
+  disease?: string;
+  severity?: string;
+  isHealthy?: string;
+  symptoms?: string;
+};
 
-CRITICAL CONSTRAINT: You MUST only answer questions related to cassava, cassava diseases, cassava cultivation, and related agricultural practices. 
+const systemPrompt = `You are AgriSmart AI, an expert plant pathologist and horticultural advisor for smallholder farmers.
 
-SCOPE EXAMPLES:
-- "How do I treat Cassava Mosaic Disease?" -> ANSWER (In scope)
-- "What is the best fertilizer for cassava?" -> ANSWER (In scope)
-- "When should I plant cassava in Ethiopia?" -> ANSWER (In scope)
-- "Tell me about TMS-98/0505 variety." -> ANSWER (In scope)
+You help with crop health for these groups:
+- Root & Tuber (especially cassava, also potato)
+- Solanaceous (tomato, potato, bell pepper)
+- Tree Fruit (mango, citrus, avocado, apple, peach)
 
-OUT-OF-SCOPE EXAMPLES:
-- "How do I grow tomatoes?" -> REFUSE (Not cassava)
-- "Who is the president of Ethiopia?" -> REFUSE (Not agriculture/cassava)
-- "Write a python script to sort a list." -> REFUSE (Not cassava)
-- "What is the capital of France?" -> REFUSE (Not cassava)
+Stay inside crop health, cultivation, pests, and disease management for those groups. If asked about politics, programming, or anything unrelated to farming, say you can only help with crop health.
 
-If a user asks about anything else, you must say: "I apologize, but I am specialized only in cassava farming and disease management. I cannot provide information on that topic."
+Be practical, supportive, and use simple language. Do not invent pesticide product names or dosages. Remind farmers to follow local regulations and consult a local agronomist before applying chemicals.`;
 
-Be practical, supportive, and use simple language. If you identify symptoms, explain the cause, impact, and treatment clearly.`;
+function withScanContext(context?: ScanContext) {
+  if (!context?.disease) return systemPrompt;
+
+  const lines = [
+    systemPrompt,
+    "",
+    "The farmer just completed a leaf/plant scan. Use this diagnosis as context, but say if the photo-based result looks uncertain:",
+    `- Crop: ${context.crop || "Unknown"}`,
+    `- Category: ${context.category || "Unknown"}`,
+    `- Diagnosis: ${context.disease}`,
+    `- Severity: ${context.severity || "Unknown"}`,
+    `- Healthy: ${context.isHealthy || "unknown"}`,
+  ];
+  if (context.symptoms) {
+    lines.push(`- Symptoms: ${context.symptoms}`);
+  }
+  return lines.join("\n");
+}
 
 export async function POST(req: Request) {
-  const { messages }: { messages: UIMessage[] } = await req.json();
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY && process.env.GEMINI_API_KEY) {
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
+  }
+
+  const { messages, scanContext }: { messages: UIMessage[]; scanContext?: ScanContext } = await req.json();
 
   const result = streamText({
     model: google("gemini-flash-latest"),
-    system: systemPrompt,
+    system: withScanContext(scanContext),
     messages: await convertToModelMessages(messages),
   });
 

@@ -200,9 +200,9 @@ cassava_frontend/
 
 ### AI Chat Functionality
 1. Go to the "Chat" section in the dashboard
-2. Type your question about cassava farming or disease management
+2. Type your question about crop health for cassava, tomato, pepper, or fruit trees
 3. Receive expert advice powered by Google Gemini AI
-4. The AI is specifically trained on cassava-related topics
+4. From a scan report, click "Ask AI for More Details" to continue with that diagnosis as context
 
 ## 🌐 API Documentation
 
