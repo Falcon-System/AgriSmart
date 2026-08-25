@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { isGeminiConfigured } from "@/lib/runtime-config";
+import { getGeminiKeyStatus } from "@/lib/runtime-config";
 import { getMongoStatus } from "@/lib/supabase";
 
 export async function GET() {
   const mongo = await getMongoStatus();
-  const gemini = { configured: isGeminiConfigured() };
+  const gemini = getGeminiKeyStatus();
 
   return NextResponse.json({
     ok: mongo.connected && gemini.configured,

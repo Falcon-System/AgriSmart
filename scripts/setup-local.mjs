@@ -6,10 +6,16 @@ import { MongoClient } from "mongodb";
 const checkOnly = process.argv.includes("--check");
 
 function isPlaceholderSecret(value) {
-  const trimmed = String(value || "").trim().replace(/^["']|["']$/g, "");
-  if (!trimmed) return true;
-  if (/^AIza[0-9A-Za-z_\-]{20,}$/.test(trimmed)) return false;
-  return trimmed.length < 20 || /your-google-api-key|api-key-here|changeme|placeholder/i.test(trimmed);
+  const compact = String(value || "")
+    .replace(/^\uFEFF/, "")
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .trim()
+    .replace(/^["']|["']$/g, "")
+    .replace(/\s+/g, "");
+  const key = compact.match(/AIza[0-9A-Za-z_\-]{20,}/)?.[0] || compact;
+  if (!key) return true;
+  if (/^AIza[0-9A-Za-z_\-]{20,}$/.test(key)) return false;
+  return key.length < 20 || /your-google-api-key|api-key-here|changeme|placeholder/i.test(key);
 }
 
 async function pingMongo(uri, dbName) {

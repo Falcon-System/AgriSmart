@@ -34,7 +34,7 @@ export default function SettingsPage() {
       if (!response.ok) throw new Error("Could not load setup status");
       return response.json() as Promise<{
         mongo: { connected: boolean; database?: string };
-        gemini: { configured: boolean };
+        gemini: { configured: boolean; hint?: string };
       }>;
     },
   });
@@ -170,7 +170,7 @@ export default function SettingsPage() {
             ok={healthQuery.data?.gemini.configured}
             loading={healthQuery.isLoading}
             readyText="API key is set. Scans and Ask AI can use Gemini."
-            missingText="Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local, then restart pnpm dev."
+            missingText={healthQuery.data?.gemini.hint || "Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local, then run pnpm dev:clean."}
           />
           <p className="text-xs text-muted-foreground">
             Create a key at aistudio.google.com/apikey. Do not put the key in the browser or commit it.

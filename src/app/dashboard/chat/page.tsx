@@ -74,7 +74,7 @@ function ChatPageInner() {
     queryFn: async () => {
       const response = await fetch("/api/health");
       if (!response.ok) throw new Error("Could not load setup status");
-      return response.json() as Promise<{ gemini: { configured: boolean } }>;
+      return response.json() as Promise<{ gemini: { configured: boolean; hint?: string } }>;
     },
   });
   const geminiReady = healthQuery.data?.gemini.configured !== false;
@@ -167,7 +167,7 @@ function ChatPageInner() {
 
       {healthQuery.data && !healthQuery.data.gemini.configured && (
         <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-          Gemini is not ready yet. Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local, then stop the server and run pnpm dev:clean.
+          Gemini is not ready yet. {healthQuery.data.gemini.hint || "Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local, then stop the server and run pnpm dev:clean."}
         </div>
       )}
 
