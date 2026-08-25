@@ -202,7 +202,7 @@ cassava_frontend/
 1. Go to the "Chat" section in the dashboard
 2. Type your question about crop health for cassava, tomato, pepper, or fruit trees
 3. Receive expert advice powered by Google Gemini AI
-4. From a scan report, click "Ask AI for More Details" to continue with that diagnosis as context
+4. From a scan report, click "Ask AI for More Details". Chat loads that scan from MongoDB and sends crop, disease, severity, symptoms, and treatment to Gemini as system context.
 
 ## 🌐 API Documentation
 
@@ -220,7 +220,14 @@ cassava_frontend/
 
 ### AI Chat API
 **Endpoint**: `POST /api/ai`
-- **Description**: Communicate with the AI agricultural assistant
+- **Description**: Stream a Gemini agronomist reply. If `scanId` is sent, the route loads that scan from MongoDB and injects crop, disease, severity, symptoms, and treatment as system context.
+- **Request Body**:
+  ```json
+  {
+    "messages": [],
+    "scanId": "uuid-of-scan"
+  }
+  ```
 
 ### Authentication APIs
 - `POST /api/auth/register` - User registration

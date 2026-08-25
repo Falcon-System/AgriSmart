@@ -340,17 +340,7 @@ export default function ScanResultPage() {
                             <div className="pt-4">
                                 <Button
                                     className="w-full rounded-2xl h-14 text-lg font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95"
-                                    onClick={() => {
-                                        const params = new URLSearchParams();
-                                        if (scanId) params.set("scanId", scanId);
-                                        params.set("disease", scan.disease || "Unknown");
-                                        if (scan.detectedCrop) params.set("crop", scan.detectedCrop);
-                                        if (scan.cropCategory) params.set("category", scan.cropCategory);
-                                        if (scan.severityGrade) params.set("severity", scan.severityGrade);
-                                        if (typeof scan.isHealthy === "boolean") params.set("healthy", String(scan.isHealthy));
-                                        if (scan.symptoms?.length) params.set("symptoms", scan.symptoms.slice(0, 6).join("; "));
-                                        router.push(`/dashboard/chat?${params.toString()}`);
-                                    }}
+                                    onClick={() => router.push(scanId ? `/dashboard/chat?scanId=${scanId}` : "/dashboard/chat")}
                                 >
                                     Ask AI for More Details
                                 </Button>

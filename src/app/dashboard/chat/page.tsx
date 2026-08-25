@@ -1,42 +1,38 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
+import { useQuery } from "@tanstack/react-query";
 import { Send, ImageIcon, Loader2, Trash2 } from "lucide-react";
 import { Streamdown } from "streamdown";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { client } from "@/utils/orpc";
 
 function ChatPageInner() {
   const searchParams = useSearchParams();
+  const scanId = searchParams.get("scanId");
   const [input, setInput] = useState("");
   const [imageAttachment, setImageAttachment] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scanIdRef = useRef(scanId);
+  scanIdRef.current = scanId;
 
-  const scanContext = useMemo(() => {
-    const disease = searchParams.get("disease");
-    if (!disease) return null;
-    return {
-      crop: searchParams.get("crop") || undefined,
-      category: searchParams.get("category") || undefined,
-      disease,
-      severity: searchParams.get("severity") || undefined,
-      isHealthy: searchParams.get("healthy") || undefined,
-      symptoms: searchParams.get("symptoms") || undefined,
-    };
-  }, [searchParams]);
-
-  const scanContextRef = useRef(scanContext);
-  scanContextRef.current = scanContext;
+  const scanQuery = useQuery({
+    queryKey: ["scans", "get", scanId],
+    queryFn: () => (client.scans.get as any)({ id: scanId }),
+    enabled: Boolean(scanId),
+  });
+  const scan = scanQuery.data;
 
   const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({
@@ -46,7 +42,7 @@ function ChatPageInner() {
           ...body,
           id,
           messages,
-          scanContext: scanContextRef.current,
+          scanId: scanIdRef.current,
         },
       }),
     }),
@@ -57,16 +53,14 @@ function ChatPageInner() {
   }, [messages]);
 
   useEffect(() => {
-    if (!scanContext) return;
-    const key = `agrismart-scan-chat:${searchParams.get("scanId") || scanContext.disease}`;
+    if (!scanId || !scan?.disease) return;
+    const key = `agrismart-scan-chat:${scanId}`;
     if (sessionStorage.getItem(key)) return;
     sessionStorage.setItem(key, "1");
-    const cropLabel = scanContext.crop || "plant";
-    const severityLabel = scanContext.severity ? ` Severity is ${scanContext.severity}.` : "";
     sendMessage({
-      text: `I just scanned a ${cropLabel}${scanContext.category ? ` (${scanContext.category})` : ""}. The diagnosis was ${scanContext.disease}.${severityLabel} Explain what this means and what I should do next.`,
+      text: "Based on this scan, explain the diagnosis and what I should do immediately.",
     });
-  }, [scanContext, searchParams, sendMessage]);
+  }, [scanId, scan, sendMessage]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -109,7 +103,7 @@ function ChatPageInner() {
           </div>
           <div className="text-muted-foreground text-sm flex items-center gap-1.5">
             <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            Your expert assistant for cassava, tomato, pepper, and fruit-tree health
+            {scanId ? "Advising from your saved scan diagnosis" : "Your expert assistant for cassava, tomato, pepper, and fruit-tree health"}
           </div>
         </div>
         {messages.length > 0 && (
@@ -119,6 +113,23 @@ function ChatPageInner() {
           </Button>
         )}
       </div>
+
+      {scan && (
+        <div className="mb-3 px-4 py-3 rounded-2xl bg-primary/5 border border-primary/10 text-sm flex flex-wrap items-center gap-2">
+          <Badge variant="secondary" className="bg-primary/10 text-primary border-none">Scan context</Badge>
+          <span className="font-medium">{scan.disease}</span>
+          {(scan.detectedCrop || scan.cropCategory || scan.severityGrade) && (
+            <span className="text-muted-foreground">
+              {[scan.detectedCrop, scan.cropCategory, scan.severityGrade].filter(Boolean).join(" · ")}
+            </span>
+          )}
+          {scanId && (
+            <Link href={`/dashboard/scans/${scanId}`} className="ml-auto text-primary text-xs font-semibold hover:underline">
+              View report
+            </Link>
+          )}
+        </div>
+      )}
 
       <Card className="flex-1 flex flex-col overflow-hidden border-border/40 bg-card/30 backdrop-blur-xl rounded-[2.5rem] shadow-2xl shadow-primary/5">
         <ScrollArea className="flex-1 px-4 py-8">
@@ -268,7 +279,7 @@ function ChatPageInner() {
               <Input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Ask about crop health..."
+                placeholder={scan ? "Ask a follow-up about this scan..." : "Ask about crop health..."}
                 className="h-12 flex-1 bg-muted/40 border-border/40 rounded-2xl px-5 focus-visible:ring-primary/20 focus-visible:border-primary/30 transition-all pr-12"
                 disabled={isStreaming}
               />
