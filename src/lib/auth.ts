@@ -1,4 +1,4 @@
-import { hash, compare } from "bcrypt";
+import { hash, compare } from "bcryptjs";
 import { sign } from "jsonwebtoken";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
@@ -89,7 +89,7 @@ export function applyAuthCookie(response: NextResponse, userId: string) {
   const token = sign({ userId }, process.env.JWT_SECRET, { expiresIn: "7d" });
   response.cookies.set("token", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: process.env.NODE_ENV === "production" || process.env.VERCEL === "1",
     sameSite: "lax",
     maxAge: 60 * 60 * 24 * 7,
     path: "/",

@@ -1,7 +1,7 @@
 
 import { POST } from "@/app/api/auth/login/route";
 import { db } from "@/lib/db";
-import { hash } from "bcrypt";
+import { hash } from "bcryptjs";
 import { sign } from "jsonwebtoken";
 
 jest.mock("@/lib/db", () => ({
@@ -12,8 +12,9 @@ jest.mock("@/lib/db", () => ({
   },
 }));
 
-jest.mock("bcrypt", () => ({
+jest.mock("bcryptjs", () => ({
   compare: jest.fn(),
+  hash: jest.fn(),
 }));
 
 jest.mock("jsonwebtoken", () => ({

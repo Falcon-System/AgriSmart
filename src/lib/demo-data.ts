@@ -1,4 +1,4 @@
-import { hash } from "bcrypt";
+import { hash } from "bcryptjs";
 import { db } from "@/lib/db";
 import { DEMO_LOGIN, findUserByIdentifier } from "@/lib/auth";
 

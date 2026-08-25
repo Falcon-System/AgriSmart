@@ -254,27 +254,45 @@ cassava_frontend/
 - `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login  
 
-## 🚀 Deployment Guide
+## 🚀 Deployment (no server disk required)
 
-Try the app locally first. When Mongo and Gemini both show ready in `/api/health`, we can deploy to the server.
+This repo is **already one Next.js app**. Pages and APIs live together:
 
-On the server you will set the same secrets, with a production Mongo URI and a strong `JWT_SECRET`:
+- UI: `src/app/...`
+- Auth, scans, Ask AI, Mongo: `src/app/api/...`
+
+There is no separate Express or FastAPI server to deploy. The Python folder is an optional local cassava fallback only. Production scans and Ask AI use Gemini.
+
+Cursor Cloud Agents are for coding, not for hosting a public website. Deploy on **Vercel (free)** and store data on **MongoDB Atlas (free)**. Atlas is cloud storage, so you do not need Docker or a VPS disk.
+
+### 1. MongoDB Atlas (free)
+
+1. Create an account at [https://www.mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a free M0 cluster
+3. Create a database user
+4. Allow access from anywhere (`0.0.0.0/0`) for Vercel
+5. Copy the connection string, for example `mongodb+srv://USER:PASSWORD@cluster.mongodb.net/`
+
+### 2. Vercel (free)
+
+1. Push this branch to GitHub
+2. Import the repo at [https://vercel.com](https://vercel.com)
+3. Framework: Next.js
+4. Set these environment variables:
 
 ```env
-MONGODB_URI="mongodb+srv://USER:PASSWORD@HOST/agrismart"
+MONGODB_URI="mongodb+srv://USER:PASSWORD@cluster.mongodb.net/"
 MONGODB_DB="agrismart"
-GOOGLE_GENERATIVE_AI_API_KEY="AIza..."
+GOOGLE_GENERATIVE_AI_API_KEY="your-gemini-auth-key"
+GEMINI_API_KEY="your-gemini-auth-key"
 JWT_SECRET="a-long-random-secret"
 ```
 
-Do not copy `.env.local` into git. Set these values in the server environment or process manager.
+5. Deploy. Vercel gives you a public URL.
 
-### Vercel (optional)
+Do not upload `.env.local`. Set secrets only in the Vercel dashboard.
 
-1. Push your code to a Git repository
-2. Import the project in [Vercel](https://vercel.com)
-3. Set the environment variables above in the Vercel dashboard
-4. Deploy
+On Vercel, scan photos are stored in MongoDB (not on disk). Ask AI and scans use Gemini, so you do not run `pnpm predict:server`.
 
 ## 🤝 Contributing
 

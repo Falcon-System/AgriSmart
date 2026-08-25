@@ -1,9 +1,10 @@
 import { os } from "@orpc/server";
 import { z } from "zod";
 import type { Context } from "@/api/context";
-import { writeFile, mkdir, unlink } from "fs/promises";
+import { unlink } from "fs/promises";
 import path from "path";
 import { ensureDemoDataset } from "@/lib/demo-data";
+import { persistDataImage } from "@/lib/media";
 
 // Create the base os with context
 const base = os.$context<Context>();
@@ -192,27 +193,7 @@ export const appRouter = base.router({
                 })
             )
             .handler(async ({ input, context }) => {
-                let savedImageUrl = input.imageUrl;
-
-                // Check if imageUrl is a base64 string
-                if (input.imageUrl.startsWith("data:image")) {
-                    try {
-                        const base64Data = input.imageUrl.split(",")[1];
-                        if (base64Data) {
-                            const buffer = Buffer.from(base64Data, "base64");
-                            const fileName = `scan-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.jpg`;
-                            const publicDir = path.join(process.cwd(), "public", "cassava_image");
-                            await mkdir(publicDir, { recursive: true });
-                            const filePath = path.join(publicDir, fileName);
-
-                            await writeFile(filePath, buffer);
-                            savedImageUrl = `/cassava_image/${fileName}`;
-                        }
-                    } catch (error) {
-                        console.error("Failed to save image:", error);
-                        // Fallback to original imageUrl if saving fails
-                    }
-                }
+                const savedImageUrl = await persistDataImage(input.imageUrl, "scan");
 
                 // Ensure severity is an integer
                 const severity = Math.round(input.severity);
@@ -508,24 +489,7 @@ export const appRouter = base.router({
             .handler(async ({ input, context }) => {
                 if (!context.user) throw new Error("Unauthorized");
 
-                let savedImageUrl = input.imageUrl;
-
-                if (input.imageUrl?.startsWith("data:image")) {
-                    try {
-                        const base64Data = input.imageUrl.split(",")[1];
-                        if (base64Data) {
-                            const buffer = Buffer.from(base64Data, "base64");
-                            const fileName = `post-${Date.now()}-${Math.random().toString(36).substring(2, 9)}.jpg`;
-                            const publicDir = path.join(process.cwd(), "public", "cassava_image");
-                            await mkdir(publicDir, { recursive: true });
-                            const filePath = path.join(publicDir, fileName);
-                            await writeFile(filePath, buffer);
-                            savedImageUrl = `/cassava_image/${fileName}`;
-                        }
-                    } catch (error) {
-                        console.error("Failed to save post image:", error);
-                    }
-                }
+                const savedImageUrl = await persistDataImage(input.imageUrl, "post");
 
                 const { data, error } = await context.db
                     .from("CommunityPost")

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { hash } from "bcrypt";
+import { hash } from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { applyAuthCookie, findUserByIdentifier, publicUser } from "@/lib/auth";
