@@ -25,6 +25,8 @@ export default function SettingsPage() {
   const [orgName, setOrgName] = useState("");
   const [locale, setLocale] = useState("en-US");
   const [currency, setCurrency] = useState("ETB");
+  const [geminiKey, setGeminiKey] = useState("");
+  const [savingKey, setSavingKey] = useState(false);
 
   const settingsQuery = useQuery(orpc.settings.get.queryOptions());
   const healthQuery = useQuery({
@@ -58,6 +60,29 @@ export default function SettingsPage() {
       toast.error("Failed to save settings");
     },
   });
+
+  const handleSaveGeminiKey = async () => {
+    setSavingKey(true);
+    try {
+      const response = await fetch("/api/setup/gemini-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: geminiKey }),
+      });
+      const payload = (await response.json()) as { error?: string; gemini?: { configured?: boolean; hint?: string } };
+      if (!response.ok) {
+        toast.error(payload.error || "Could not save the Gemini key");
+        return;
+      }
+      setGeminiKey("");
+      await queryClient.invalidateQueries({ queryKey: ["setup-health"] });
+      toast.success("Gemini key saved to .env.local");
+    } catch {
+      toast.error("Could not save the Gemini key");
+    } finally {
+      setSavingKey(false);
+    }
+  };
 
   const handleSave = () => {
     updateMutation.mutate({
@@ -172,9 +197,24 @@ export default function SettingsPage() {
             readyText="API key is set. Scans and Ask AI can use Gemini."
             missingText={healthQuery.data?.gemini.hint || "Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local, then run pnpm dev:clean."}
           />
-          <p className="text-xs text-muted-foreground">
-            Create a key at aistudio.google.com/apikey. Do not put the key in the browser or commit it.
-          </p>
+          <div className="space-y-2 pt-2">
+            <Label htmlFor="geminiKey">Paste Gemini API key</Label>
+            <Input
+              id="geminiKey"
+              type="password"
+              autoComplete="off"
+              placeholder="AIza..."
+              value={geminiKey}
+              onChange={(e) => setGeminiKey(e.target.value)}
+            />
+            <Button type="button" onClick={handleSaveGeminiKey} disabled={savingKey || !geminiKey.trim()}>
+              {savingKey ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              Save Gemini key
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Create a key at aistudio.google.com/apikey. This saves it as UTF-8 in .env.local on this computer.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
