@@ -72,7 +72,7 @@ export default function FieldsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
         <div className="space-y-1">
           <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-foreground">Community</h1>
-          <p className="text-muted-foreground font-medium text-sm sm:text-base">Insights and updates from cassava fields worldwide</p>
+          <p className="text-muted-foreground font-medium text-sm sm:text-base">Insights from cassava, tomato, and fruit growers across the region</p>
         </div>
         <div className="flex items-center gap-2">
           {meQuery.data?.id && (

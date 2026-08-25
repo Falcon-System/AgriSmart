@@ -89,6 +89,14 @@ docker compose up -d
 
 If `MONGODB_URI` is not set or MongoDB is unreachable, the app falls back to an in-memory store. That fallback is not persistent across restarts.
 
+Load demo farmers, farms, community posts, and sample scans:
+
+```bash
+pnpm seed:local
+```
+
+Demo login: username `farmer` / password `FarmDemo123`
+
 ## ⚙️ Configuration
 
 ### Environment Variables
