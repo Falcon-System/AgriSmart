@@ -342,7 +342,7 @@ export default function ScanResultPage() {
                                     className="w-full rounded-2xl h-14 text-lg font-bold shadow-lg shadow-primary/20 transition-transform active:scale-95"
                                     onClick={() => router.push(scanId ? `/dashboard/chat?scanId=${scanId}` : "/dashboard/chat")}
                                 >
-                                    Ask AI for More Details
+                                    Ask AI about this scan
                                 </Button>
                             </div>
                         </CardContent>

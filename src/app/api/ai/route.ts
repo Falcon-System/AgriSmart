@@ -10,6 +10,13 @@ export async function POST(req: Request) {
     process.env.GOOGLE_GENERATIVE_AI_API_KEY = process.env.GEMINI_API_KEY;
   }
 
+  if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+    return NextResponse.json(
+      { error: "Ask AI is not available yet. Please try again later." },
+      { status: 503 }
+    );
+  }
+
   const body = await req.json();
   const messages = body.messages as UIMessage[];
   const scanId = typeof body.scanId === "string" ? body.scanId : undefined;
@@ -22,12 +29,20 @@ export async function POST(req: Request) {
     }
   }
 
-  const result = streamText({
-    model: google("gemini-2.5-flash"),
-    system: buildAdvisorSystemPrompt(scan),
-    temperature: 0.4,
-    messages: await convertToModelMessages(messages),
-  });
+  try {
+    const result = streamText({
+      model: google("gemini-2.5-flash"),
+      system: buildAdvisorSystemPrompt(scan),
+      temperature: 0.4,
+      messages: await convertToModelMessages(messages),
+    });
 
-  return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse();
+  } catch (error) {
+    console.error("Ask AI error", error);
+    return NextResponse.json(
+      { error: "Could not get an answer. Please try again." },
+      { status: 500 }
+    );
+  }
 }

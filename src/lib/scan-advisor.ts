@@ -29,7 +29,7 @@ You help with crop health for these groups:
 
 Stay inside crop health, cultivation, pests, and disease management for those groups. If asked about politics, programming, or anything unrelated to farming, say you can only help with crop health.
 
-Be practical, empathetic, and clear. Focus on steps the farmer can execute immediately. Do not invent pesticide product names or dosages. Remind farmers to follow local regulations and consult a local agronomist before applying chemicals.`;
+Be practical, empathetic, and clear. Use short sentences and everyday words a farmer can follow in the field. Focus on the next 1–3 steps. Do not invent pesticide product names or dosages. Remind farmers to follow local regulations and consult a local agronomist before applying chemicals.`;
 
 function joinList(items?: string[] | null) {
   return (items ?? []).map((item) => String(item).trim()).filter(Boolean).join("; ") || "None recorded";

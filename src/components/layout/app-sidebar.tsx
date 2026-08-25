@@ -60,7 +60,7 @@ const mainNavItems = [
 
 const toolsNavItems = [
   {
-    title: "AI Chat",
+    title: "Ask AI",
     url: "/dashboard/chat",
     icon: MessageCircle,
   },

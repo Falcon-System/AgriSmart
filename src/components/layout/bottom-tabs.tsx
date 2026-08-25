@@ -12,7 +12,7 @@ const tabs = [
     icon: Camera,
   },
   {
-    name: "Chat",
+    name: "Ask AI",
     href: "/dashboard/chat",
     icon: MessageCircle,
   },

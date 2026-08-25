@@ -221,7 +221,7 @@ export default function LandingPage() {
                 step: "3",
                 title: "Get Targeted Treatment",
                 description:
-                  "Receive localized chemical, biological, and cultural treatment protocols alongside an interactive AI Chat Advisor for customized field management advice.",
+                  "Receive localized chemical, biological, and cultural treatment protocols, then Ask AI for simple next steps in the field.",
               },
             ].map((item) => (
               <div key={item.step} className="text-center">
