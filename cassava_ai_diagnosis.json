@@ -1,0 +1,153 @@
+{
+  "version": "1.0",
+  "generated_at": "2026-01-21T11:04:40.195623Z",
+  "crop": "Cassava",
+  "country_focus": "Africa (Ethiopia)",
+  "diagnoses": [
+    {
+      "id": "CMD",
+      "name": "Cassava Mosaic Disease",
+      "type": "Viral",
+      "severity": "High",
+      "ai_observation": [
+        "Yellow and green mosaic patterns on leaves",
+        "Leaf curling and distortion",
+        "Reduced leaf size"
+      ],
+      "cause": "Cassava mosaic viruses spread by whiteflies and infected cuttings",
+      "impact": [
+        "Stunted plant growth",
+        "Poor root development",
+        "Yield loss up to 90%"
+      ],
+      "treatment": [
+        "Remove and destroy infected plants",
+        "Use resistant cassava varieties",
+        "Plant certified disease-free cuttings",
+        "Control whiteflies"
+      ],
+      "prevention": [
+        "Do not reuse infected stems",
+        "Monitor plants early after planting"
+      ]
+    },
+    {
+      "id": "CBSD",
+      "name": "Cassava Brown Streak Disease",
+      "type": "Viral",
+      "severity": "Very High",
+      "ai_observation": [
+        "Yellowing along leaf veins",
+        "Mild leaf chlorosis",
+        "Sometimes no visible leaf symptoms"
+      ],
+      "cause": "Virus spread by whiteflies and infected planting material",
+      "hidden_danger": [
+        "Brown, dry rot inside cassava roots",
+        "Roots become inedible"
+      ],
+      "treatment": [
+        "Destroy infected plants",
+        "Use CBSD-resistant varieties",
+        "Plant clean cuttings only",
+        "Control whiteflies"
+      ],
+      "prevention": [
+        "Avoid moving cuttings between regions",
+        "Regular field inspection"
+      ]
+    },
+    {
+      "id": "CBB",
+      "name": "Cassava Bacterial Blight",
+      "type": "Bacterial",
+      "severity": "Medium to High",
+      "ai_observation": [
+        "Water-soaked leaf spots",
+        "Brown leaf blight",
+        "Leaf wilting and drop"
+      ],
+      "cause": "Bacteria spread by rain splash, tools, animals, and infected cuttings",
+      "impact": [
+        "Stem dieback",
+        "Reduced yield"
+      ],
+      "treatment": [
+        "Remove infected plants",
+        "Disinfect tools",
+        "Improve field drainage",
+        "Use resistant varieties"
+      ],
+      "prevention": [
+        "Avoid working in wet fields",
+        "Use clean planting material"
+      ]
+    },
+    {
+      "id": "CAD",
+      "name": "Cassava Anthracnose Disease",
+      "type": "Fungal",
+      "severity": "Medium",
+      "ai_observation": [
+        "Leaves drying from the top",
+        "Dark sunken lesions on stems",
+        "Stem cracking"
+      ],
+      "cause": "Fungus spread by rain, wind, and infected cuttings",
+      "treatment": [
+        "Cut and destroy infected stems",
+        "Use healthy planting material",
+        "Apply fungicide (Mancozeb or copper-based)"
+      ],
+      "prevention": [
+        "Proper plant spacing",
+        "Improve air circulation"
+      ]
+    },
+    {
+      "id": "CLS",
+      "name": "Cercospora Leaf Spot",
+      "type": "Fungal",
+      "severity": "Low to Medium",
+      "ai_observation": [
+        "Small brown or white leaf spots",
+        "Yellow halos around spots",
+        "Early leaf drop"
+      ],
+      "cause": "Fungal infection favored by humid conditions",
+      "impact": [
+        "Reduced photosynthesis",
+        "Lower yield"
+      ],
+      "treatment": [
+        "Remove infected leaves",
+        "Apply fungicide (Mancozeb or Chlorothalonil)"
+      ],
+      "prevention": [
+        "Crop rotation",
+        "Improve field airflow"
+      ]
+    },
+    {
+      "id": "CGM",
+      "name": "Cassava Green Mite Damage",
+      "type": "Pest",
+      "severity": "Medium",
+      "ai_observation": [
+        "Yellow speckles on leaves",
+        "Leaf curling",
+        "Dry, dusty leaf appearance"
+      ],
+      "cause": "Green mites feeding on young cassava leaves",
+      "treatment": [
+        "Use neem-based pesticides",
+        "Encourage natural predators",
+        "Maintain soil moisture"
+      ],
+      "prevention": [
+        "Use resistant varieties",
+        "Regular pest monitoring"
+      ]
+    }
+  ]
+}

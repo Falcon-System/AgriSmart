@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+tensorflow
+tensorflow-hub
+numpy
+Pillow
+python-multipart
+requests
+matplotlib
+pymongo

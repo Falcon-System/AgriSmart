@@ -1,0 +1,17 @@
+__pycache__/
+*.pyc
+.env
+.idea/
+.vscode/
+
+# Logs and temp files
+error_log.txt
+output.txt
+debug_output*.txt
+
+# Exclude generated test images if necessary
+# test_*.png
+# not_a_plant_*.png
+car.jpg
+healthy_test.jpg
+test_cassava_leaf_*.png
