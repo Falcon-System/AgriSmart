@@ -30,7 +30,7 @@ function coerceCropCategory(value: unknown): unknown {
   if (normalized.includes("fruit") || normalized.includes("tree") || normalized.includes("mango") || normalized.includes("citrus")) {
     return "Tree Fruit";
   }
-  if (normalized.includes("unknown")) return "Unknown";
+  if (normalized.includes("unknown") || normalized.includes("veget")) return "Unknown";
   return value;
 }
 
@@ -88,8 +88,47 @@ const cropScanResultInputSchema = cropScanResultSchema.extend({
 export type CropScanResult = z.infer<typeof cropScanResultSchema>;
 export type TreatmentPlan = z.infer<typeof treatmentPlanSchema>;
 
+function asStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item ?? "").trim()).filter(Boolean);
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return [];
+}
+
+function asBoolean(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  const text = String(value ?? "").trim().toLowerCase();
+  return ["true", "yes", "healthy", "1"].includes(text);
+}
+
+function asNumber(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  const parsed = Number(String(value ?? "").replace("%", "").trim());
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function asTreatment(value: unknown) {
+  const plan = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return {
+    chemical_control: asStringArray(plan.chemical_control),
+    organic_biological: asStringArray(plan.organic_biological),
+    cultural_practices: asStringArray(plan.cultural_practices),
+  };
+}
+
 export function parseCropScanResult(value: unknown): CropScanResult {
-  return cropScanResultInputSchema.parse(value);
+  const raw = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const disease = String(raw.disease_detected || raw.disease || "Unknown").trim() || "Unknown";
+  return cropScanResultInputSchema.parse({
+    crop_category: raw.crop_category ?? "Unknown",
+    detected_crop: String(raw.detected_crop || raw.crop || "Unknown").trim() || "Unknown",
+    disease_detected: disease,
+    is_healthy: raw.is_healthy == null ? /healthy/i.test(disease) : asBoolean(raw.is_healthy),
+    confidence_score: asNumber(raw.confidence_score ?? raw.confidence),
+    severity_grade: raw.severity_grade ?? raw.severity ?? "None",
+    symptoms_observed: asStringArray(raw.symptoms_observed ?? raw.symptoms),
+    treatment: asTreatment(raw.treatment),
+  });
 }
 
 export function joinAdvice(items?: string[] | null) {

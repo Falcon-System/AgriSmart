@@ -73,7 +73,7 @@ const features = [
   },
   {
     icon: MessageCircle,
-    title: "Gemini Horticultural AI Advisor",
+    title: "AgriSmart Horticultural AI Advisor",
     description:
       "An intelligent conversational assistant that answers follow-up agronomic questions tailored directly to your scan history.",
   },
@@ -143,7 +143,7 @@ export default function LandingPage() {
             <p className="text-lg md:text-2xl text-white/90 max-w-3xl mx-auto font-light leading-relaxed animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-300">
               Instantly diagnose crop diseases, access targeted treatment protocols, and optimize yield across{" "}
               <strong className="font-semibold text-white">Cassava, Solanaceous Vegetables, and Tree Fruits</strong>{" "}
-              using advanced computer vision and Gemini-driven agronomy.
+              using advanced computer vision and AgriSmart agronomy.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-6 justify-center pt-8 animate-in fade-in slide-in-from-bottom-4 duration-1000 delay-500">
@@ -221,7 +221,7 @@ export default function LandingPage() {
                 step: "3",
                 title: "Get Targeted Treatment",
                 description:
-                  "Receive localized chemical, biological, and cultural treatment protocols alongside an interactive AI Chat Advisor for customized field management advice.",
+                  "Receive localized chemical, biological, and cultural treatment protocols, then Ask AI for simple next steps in the field.",
               },
             ].map((item) => (
               <div key={item.step} className="text-center">

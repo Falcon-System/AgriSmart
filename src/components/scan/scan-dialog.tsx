@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { CameraScanner } from "@/components/scan/camera-scanner";
 import { orpc, client } from "@/utils/orpc";
 import { CROP_CATEGORIES } from "@/lib/crop-scan";
+import { prepareLeafImage, resizeImageDataUrl } from "@/lib/image-file";
 import {
     Select,
     SelectContent,
@@ -58,12 +59,26 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
     const [step, setStep] = useState<"capture" | "confirming">("capture");
     const [image, setImage] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisError, setAnalysisError] = useState<string | null>(null);
     const [cropCategory, setCropCategory] = useState<string>("Root & Tuber");
+    const [isDesktop, setIsDesktop] = useState(false);
     const ignoreDismissUntil = useRef(0);
+    const capturePending = useRef(false);
+    const cameraInputRef = useRef<HTMLInputElement>(null);
+    const galleryInputRef = useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        const media = window.matchMedia("(min-width: 768px)");
+        const update = () => setIsDesktop(media.matches);
+        update();
+        media.addEventListener("change", update);
+        return () => media.removeEventListener("change", update);
+    }, []);
 
     const armFilePickerGuard = useCallback(() => {
-        // Native file pickers blur the dialog; ignore dismiss until the OS picker closes.
-        ignoreDismissUntil.current = Date.now() + 1500;
+        // Native camera/gallery apps steal focus; keep the scanner open until the photo returns.
+        capturePending.current = true;
+        ignoreDismissUntil.current = Date.now() + 10 * 60 * 1000;
     }, []);
 
     const createMutation = useMutation({
@@ -77,29 +92,43 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
         },
         onError: (error: any) => {
             console.error("Mutation Error:", error);
-            toast.error("Failed to save scan results");
+            const raw = String(error?.message || error || "");
+            toast.error(
+                /mongo|ECONNREFUSED|not connected|topology was destroyed|connect/i.test(raw)
+                    ? "Analysis finished, but MongoDB is not running. Start it with: docker compose up -d"
+                    : "Failed to save scan results. Check that MongoDB is running, then try again."
+            );
             setIsAnalyzing(false);
         },
     });
 
+    const useSelectedImage = useCallback(async (file: File) => {
+        try {
+            const dataUrl = await prepareLeafImage(file);
+            setImage(dataUrl);
+            setStep("confirming");
+            setAnalysisError(null);
+        } catch (error: any) {
+            toast.error(error?.message || "Could not open that photo.");
+        }
+    }, []);
+
     const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         e.target.value = "";
+        capturePending.current = false;
         ignoreDismissUntil.current = Date.now() + 1000;
         if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-            setImage(ev.target?.result as string);
-            setStep("confirming");
-        };
-        reader.readAsDataURL(file);
-    }, []);
+        void useSelectedImage(file);
+    }, [useSelectedImage]);
 
     const handleOpenChange = useCallback((nextOpen: boolean, details?: { reason?: string; cancel?: () => void }) => {
-        const guarded = Date.now() < ignoreDismissUntil.current;
-        if (!nextOpen && (details?.reason === "focus-out" || (guarded && details?.reason === "outside-press"))) {
-            details.cancel?.();
+        const pickingPhoto =
+            capturePending.current ||
+            document.hidden ||
+            Date.now() < ignoreDismissUntil.current;
+        if (!nextOpen && (details?.reason === "focus-out" || pickingPhoto)) {
+            details?.cancel?.();
             return;
         }
         setOpen(nextOpen);
@@ -110,22 +139,23 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
         if (!image) return;
 
         setIsAnalyzing(true);
+        setAnalysisError(null);
         try {
+            const preparedImage = await resizeImageDataUrl(image);
+            if (preparedImage !== image) setImage(preparedImage);
             const response = await fetch("/api/predict", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ image, cropCategory }),
+                body: JSON.stringify({ image: preparedImage, cropCategory }),
             });
 
             const data = await response.json();
 
             if (!response.ok) throw new Error(data.error || "Analysis failed");
 
-            console.log("AI Prediction Data:", data);
-
             createMutation.mutate({
                 fieldId: null,
-                imageUrl: image,
+                imageUrl: preparedImage,
                 disease: data.disease || "Unknown",
                 severity: typeof data.severity === 'number' ? data.severity : 50,
                 confidence: typeof data.confidence === 'number' ? data.confidence : 0,
@@ -141,7 +171,9 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
             });
         } catch (err: any) {
             console.error("Analysis or Saving Error:", err);
-            toast.error(err.message || "AI Analysis failed. Please try again.");
+            const message = err.message || "AI Analysis failed. Please try again.";
+            setAnalysisError(message);
+            toast.error(message);
             setIsAnalyzing(false);
         }
     }, [image, cropCategory, createMutation]);
@@ -150,6 +182,8 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
         setStep("capture");
         setImage(null);
         setIsAnalyzing(false);
+        setAnalysisError(null);
+        capturePending.current = false;
     };
 
     return (
@@ -159,7 +193,10 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
             onOpenChange={handleOpenChange}
         >
             <DialogTrigger render={trigger as any} />
-            <DialogContent className="sm:max-w-[500px] p-0 overflow-hidden rounded-[2.5rem] border-none shadow-2xl h-[85vh] flex flex-col">
+            <DialogContent
+                showCloseButton
+                className="p-0 overflow-hidden rounded-none border-none shadow-2xl h-[100dvh] max-h-[100dvh] max-w-none w-screen sm:max-w-[500px] sm:h-[85vh] sm:max-h-[85vh] sm:rounded-[2.5rem] sm:w-full flex flex-col"
+            >
                 <div className="flex flex-col bg-zinc-50 dark:bg-zinc-950 flex-1 overflow-hidden">
                     <div className="p-5 border-b bg-white dark:bg-zinc-900 flex items-center justify-between shrink-0">
                         <div className="flex items-center gap-3">
@@ -201,18 +238,54 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                                         Upload
                                     </TabsTrigger>
                                 </TabsList>
-                                <TabsContent value="camera" className="mt-0 flex-1 relative overflow-hidden">
-                                    <div className="w-full h-full rounded-2xl overflow-hidden border bg-black relative shadow-lg">
-                                        <CameraScanner
-                                            onScanComplete={(res, img) => {
-                                                setImage(img);
-                                                setStep("confirming");
-                                            }}
-                                            hideResult={true}
+                                <TabsContent value="camera" className="mt-0 flex-1 relative overflow-hidden min-h-0">
+                                    <div className="w-full h-full min-h-0 rounded-2xl overflow-hidden border bg-black relative shadow-lg flex flex-col">
+                                        <div className="flex-1 min-h-0 p-4 flex flex-col items-center justify-center gap-4 bg-zinc-950">
+                                            <div className="size-16 rounded-full bg-primary/15 flex items-center justify-center text-primary">
+                                                <Camera className="size-8" />
+                                            </div>
+                                            <div className="text-center px-4">
+                                                <h3 className="font-bold text-white">Take a leaf photo</h3>
+                                                <p className="text-xs text-zinc-400 mt-1">
+                                                    Opens your phone camera. Point it at the leaf, then tap the shutter.
+                                                </p>
+                                            </div>
+                                            <label
+                                                htmlFor="leaf-camera-capture"
+                                                className="w-full max-w-xs h-14 rounded-2xl text-lg font-bold inline-flex items-center justify-center bg-primary text-primary-foreground shadow-xl shadow-primary/20 active:scale-[0.98]"
+                                                onClick={armFilePickerGuard}
+                                                onPointerDown={armFilePickerGuard}
+                                            >
+                                                <Camera className="mr-2 size-5" />
+                                                Take Photo
+                                            </label>
+                                            <p className="text-[10px] text-zinc-500">On a computer, this can also open a file picker.</p>
+                                        </div>
+                                        {isDesktop && (
+                                        <div className="flex-1 min-h-[220px] border-t border-zinc-800">
+                                            <CameraScanner
+                                                onScanComplete={(_res, img) => {
+                                                    setImage(img);
+                                                    setStep("confirming");
+                                                }}
+                                                hideResult={true}
+                                            />
+                                        </div>
+                                        )}
+                                        <input
+                                            id="leaf-camera-capture"
+                                            ref={cameraInputRef}
+                                            type="file"
+                                            accept="image/*"
+                                            capture="environment"
+                                            className="sr-only"
+                                            onClick={armFilePickerGuard}
+                                            onPointerDown={armFilePickerGuard}
+                                            onChange={handleImageSelect}
                                         />
                                     </div>
                                 </TabsContent>
-                                <TabsContent value="file" className="mt-0 flex-1 relative overflow-hidden">
+                                <TabsContent value="file" className="mt-0 flex-1 relative overflow-hidden min-h-0">
                                     <div className="w-full h-full relative group">
                                         <Card className="w-full h-full border-2 border-dashed border-zinc-200 dark:border-zinc-800 hover:border-primary/50 transition-all rounded-[1.5rem] flex flex-col items-center justify-center bg-white/50 dark:bg-zinc-900/50 p-4">
                                             <CardContent className="p-0 flex flex-col items-center gap-4">
@@ -223,13 +296,22 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                                                     <h3 className="font-bold text-sm">Choose Image</h3>
                                                     <p className="text-[10px] text-muted-foreground mt-1 px-4 leading-tight">Select a clear photo of the leaf from your gallery</p>
                                                 </div>
-                                                <Button variant="outline" size="sm" className="rounded-full mt-2">Select File</Button>
+                                                <label
+                                                    htmlFor="leaf-gallery-capture"
+                                                    className="rounded-full mt-2 inline-flex h-9 items-center justify-center border border-border bg-background px-4 text-sm font-medium"
+                                                    onClick={armFilePickerGuard}
+                                                    onPointerDown={armFilePickerGuard}
+                                                >
+                                                    Select File
+                                                </label>
                                             </CardContent>
                                         </Card>
                                         <input
+                                            id="leaf-gallery-capture"
+                                            ref={galleryInputRef}
                                             type="file"
                                             accept="image/*"
-                                            className="absolute inset-0 opacity-0 cursor-pointer"
+                                            className="sr-only"
                                             onClick={armFilePickerGuard}
                                             onPointerDown={armFilePickerGuard}
                                             onChange={handleImageSelect}
@@ -250,8 +332,8 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                                                 <Loader2 className="size-16 animate-spin text-primary" />
                                                 <Sparkles className="absolute -top-1 -right-1 size-6 text-yellow-400 animate-pulse" />
                                             </div>
-                                            <h3 className="text-2xl font-black mb-2 tracking-tight">Processing...</h3>
-                                            <p className="text-sm text-zinc-300">Analyzing leaf texture and identifying health markers</p>
+                                            <h3 className="text-2xl font-black mb-2 tracking-tight">Analyzing with AgriSmart...</h3>
+                                            <p className="text-sm text-zinc-300">This usually takes a few seconds</p>
                                             <div className="absolute left-0 right-0 h-1 bg-primary/50 shadow-[0_0_15px_rgba(var(--primary),1)] animate-scan-line top-0" />
                                         </div>
                                     )}
@@ -259,12 +341,17 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
 
                                 {!isAnalyzing && (
                                     <div className="space-y-2 shrink-0">
+                                        {analysisError && (
+                                            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/70 dark:text-red-200">
+                                                {analysisError}
+                                            </div>
+                                        )}
                                         <Button
                                             className="w-full h-14 rounded-2xl text-lg font-bold shadow-xl shadow-primary/20 active:scale-[0.98] transition-all bg-primary hover:bg-primary/90 text-primary-foreground"
                                             onClick={startAnalysis}
                                             disabled={isAnalyzing}
                                         >
-                                            Start AI Analysis
+                                            {analysisError ? "Try Analysis Again" : "Start AI Analysis"}
                                         </Button>
                                         <Button
                                             variant="ghost"
@@ -282,7 +369,7 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                     <div className="p-3 bg-white dark:bg-zinc-900 border-t flex justify-center shrink-0">
                         <div className="flex items-center gap-2 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[10px] font-medium text-muted-foreground">
                             <Scan className="size-3" />
-                            <span>Powered by Gemini Vision with a local cassava fallback</span>
+                            <span>Powered by AgriSmart AI</span>
                         </div>
                     </div>
                 </div>

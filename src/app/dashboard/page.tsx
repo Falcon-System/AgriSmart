@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { ScanLine, Layers, Warehouse, Bug, TrendingUp, ArrowRight } from "lucide-react";
+import { ScanLine, Layers, Warehouse, Bug, TrendingUp, ArrowRight, MessageCircle } from "lucide-react";
 import Link from "next/link";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -259,7 +259,7 @@ export default function DashboardPage() {
               className="group border-border bg-background hover:bg-purple-50 hover:border-blue-200 dark:hover:bg-purple-950 dark:hover:border-purple-900 rounded-[5px] border h-auto py-6 flex flex-col items-center justify-center gap-3 transition-all shadow-sm hover:shadow-md"
             >
               <div className="size-12 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <Bug className="size-6 text-purple-600 dark:text-purple-400" />
+                <MessageCircle className="size-6 text-purple-600 dark:text-purple-400" />
               </div>
               <span className="font-medium">Ask AI</span>
             </Link>

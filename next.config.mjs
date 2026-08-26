@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["shiki"],
-  serverExternalPackages: ["mongodb"],
+  serverExternalPackages: ["mongodb", "bcrypt", "bcryptjs"],
   typescript: {
     ignoreBuildErrors: true,
   },

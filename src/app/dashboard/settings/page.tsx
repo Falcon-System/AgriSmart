@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Save, Loader2, Check } from "lucide-react";
+import { Save, Loader2, Check, CircleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,8 +25,22 @@ export default function SettingsPage() {
   const [orgName, setOrgName] = useState("");
   const [locale, setLocale] = useState("en-US");
   const [currency, setCurrency] = useState("ETB");
+  const [geminiKey, setGeminiKey] = useState("");
+  const [savingKey, setSavingKey] = useState(false);
 
   const settingsQuery = useQuery(orpc.settings.get.queryOptions());
+  const healthQuery = useQuery({
+    queryKey: ["setup-health"],
+    queryFn: async () => {
+      const response = await fetch("/api/health");
+      if (!response.ok) throw new Error("Could not load setup status");
+      return response.json() as Promise<{
+        mongo: { connected: boolean; database?: string };
+        groq?: { configured?: boolean };
+        gemini: { configured: boolean; hint?: string; googleAccepted?: boolean };
+      }>;
+    },
+  });
 
   useEffect(() => {
     if (settingsQuery.data) {
@@ -47,6 +61,29 @@ export default function SettingsPage() {
       toast.error("Failed to save settings");
     },
   });
+
+  const handleSaveGeminiKey = async () => {
+    setSavingKey(true);
+    try {
+      const response = await fetch("/api/setup/gemini-key", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key: geminiKey }),
+      });
+      const payload = (await response.json()) as { error?: string; gemini?: { configured?: boolean; hint?: string } };
+      if (!response.ok) {
+        toast.error(payload.error || "Could not save the AgriSmart AI key");
+        return;
+      }
+      setGeminiKey("");
+      await queryClient.invalidateQueries({ queryKey: ["setup-health"] });
+      toast.success("AgriSmart AI key saved");
+    } catch {
+      toast.error("Could not save the AgriSmart AI key");
+    } finally {
+      setSavingKey(false);
+    }
+  };
 
   const handleSave = () => {
     updateMutation.mutate({
@@ -141,27 +178,48 @@ export default function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>AI Configuration</CardTitle>
+          <CardTitle>Local setup</CardTitle>
           <CardDescription>
-            Settings for the AI-powered features
+            MongoDB and AgriSmart AI must be ready before you scan or use Ask AI
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
-            <div className="size-10 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-              <Check className="size-5 text-green-600 dark:text-green-400" />
-            </div>
-            <div className="flex-1">
-              <p className="font-medium">Google Gemini AI</p>
-              <p className="text-sm text-muted-foreground">
-                Configured and ready for disease detection
-              </p>
-            </div>
+        <CardContent className="space-y-3">
+          <SetupStatusRow
+            title="MongoDB"
+            ok={healthQuery.data?.mongo.connected}
+            loading={healthQuery.isLoading}
+            readyText={`Connected to ${healthQuery.data?.mongo.database || "agrismart_local"}`}
+            missingText="Not connected. On your computer run: docker compose up -d"
+          />
+          <SetupStatusRow
+            title="AgriSmart AI"
+            ok={
+              healthQuery.data?.groq?.configured ||
+              healthQuery.data?.gemini.googleAccepted ||
+              healthQuery.data?.gemini.configured
+            }
+            loading={healthQuery.isLoading}
+            readyText="AgriSmart AI is ready for scans and Ask AI."
+            missingText="AgriSmart AI is not ready yet. Please try again in a moment."
+          />
+          <div className="space-y-2 pt-2">
+            <Label htmlFor="geminiKey">Paste AgriSmart AI key</Label>
+            <Input
+              id="geminiKey"
+              type="password"
+              autoComplete="off"
+              placeholder="gsk_... or AIza..."
+              value={geminiKey}
+              onChange={(e) => setGeminiKey(e.target.value)}
+            />
+            <Button type="button" onClick={handleSaveGeminiKey} disabled={savingKey || !geminiKey.trim()}>
+              {savingKey ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              Save AgriSmart AI key
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Paste a Groq key first (console.groq.com/keys). Google AI Studio is the backup if Groq is down. On your computer this writes .env.local. On Vercel, add GROQ_API_KEY, then Redeploy.
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            The AI model is pre-configured for this application. Contact your
-            administrator if you need to update the API key.
-          </p>
         </CardContent>
       </Card>
 
@@ -177,6 +235,49 @@ export default function SettingsPage() {
           )}
           Save Changes
         </Button>
+      </div>
+    </div>
+  );
+}
+
+function SetupStatusRow({
+  title,
+  ok,
+  loading,
+  readyText,
+  missingText,
+}: {
+  title: string;
+  ok?: boolean;
+  loading: boolean;
+  readyText: string;
+  missingText: string;
+}) {
+  const ready = Boolean(ok);
+  return (
+    <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+      <div
+        className={`size-10 rounded-full flex items-center justify-center ${
+          loading
+            ? "bg-muted-foreground/10"
+            : ready
+              ? "bg-green-100 dark:bg-green-900"
+              : "bg-amber-100 dark:bg-amber-900"
+        }`}
+      >
+        {loading ? (
+          <Loader2 className="size-5 animate-spin text-muted-foreground" />
+        ) : ready ? (
+          <Check className="size-5 text-green-600 dark:text-green-400" />
+        ) : (
+          <CircleAlert className="size-5 text-amber-600 dark:text-amber-400" />
+        )}
+      </div>
+      <div className="flex-1">
+        <p className="font-medium">{title}</p>
+        <p className="text-sm text-muted-foreground">
+          {loading ? "Checking…" : ready ? readyText : missingText}
+        </p>
       </div>
     </div>
   );

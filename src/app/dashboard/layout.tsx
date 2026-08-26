@@ -19,7 +19,11 @@ export default function DashboardLayout({
   }, []);
 
   if (!mounted) {
-    return null; // or a loading skeleton
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground">
+        Loading AgriSmart...
+      </div>
+    );
   }
 
   return (
@@ -28,7 +32,7 @@ export default function DashboardLayout({
         <AppSidebar />
         <SidebarInset className="overflow-hidden flex flex-col">
           <DashboardHeader />
-          <main className="flex-1 min-h-0 flex flex-col p-4 pb-24 md:p-6 md:pb-6 overflow-auto">
+          <main className="flex-1 min-h-0 flex flex-col p-4 pb-24 md:p-6 md:pb-6 overflow-y-auto">
             {children}
           </main>
         </SidebarInset>

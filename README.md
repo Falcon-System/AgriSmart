@@ -53,54 +53,71 @@ Before setting up the project, ensure you have the following installed:
 - **MongoDB** (recommended for persistent local data; Docker Compose is included)
 - **Docker** (optional, used to start local MongoDB)
 
-## 🔧 Installation
+## 🔧 Local setup (MongoDB + Gemini)
 
-1. Clone the repository:
-```bash
-git clone <repository-url>
-cd cassava_frontend
-```
+Do this on your computer before we deploy.
 
-2. Install dependencies using pnpm:
+1. Install Node.js 18+, pnpm, Git, and Docker.
+2. Use the Next.js app folder (the one with `package.json` and `src/app`).
+3. Checkout this branch and install:
+
 ```bash
+git fetch origin
+git checkout cursor/mongodb-local-run-1d19
+git pull origin cursor/mongodb-local-run-1d19
 pnpm install
-```
-
-3. Set up environment variables:
-```bash
 cp .env.example .env.local
 ```
 
-4. Configure your environment variables in `.env.local`:
-```env
-MONGODB_URI="mongodb://127.0.0.1:27017"
-MONGODB_DB="agrismart_local"
-GOOGLE_GENERATIVE_AI_API_KEY="your-google-api-key-here"
-GEMINI_API_KEY="your-google-api-key-here"
-JWT_SECRET="your-secret-key"
-NEXT_PUBLIC_BACKEND_URL="http://localhost:8000"
-PREDICTION_API_URL="http://localhost:8000/predict"
-```
+4. Start MongoDB and load demo data:
 
-5. Start local MongoDB (recommended):
 ```bash
-docker compose up -d
+pnpm setup:local
 ```
 
-If `MONGODB_URI` is not set or MongoDB is unreachable, the app falls back to an in-memory store. That fallback is not persistent across restarts.
+That command starts MongoDB with Docker Compose (`docker compose up -d`), waits until it accepts connections, and seeds the demo farmer.
 
-## ⚙️ Configuration
+If Docker is not installed, install it first, or run a local MongoDB on `127.0.0.1:27017`.
 
-### Environment Variables
+5. Add your Gemini key in `.env.local`:
+
+```env
+GOOGLE_GENERATIVE_AI_API_KEY="AIza..."
+```
+
+Create the key at [Google AI Studio](https://aistudio.google.com/apikey). Keep it server-only. Do not use `NEXT_PUBLIC_` and do not commit `.env.local`.
+
+6. Start the app:
+
+```bash
+pnpm dev
+```
+
+Open [http://localhost:3001](http://localhost:3001)
+
+- Login: `farmer` / `FarmDemo123`
+- Setup status: [http://localhost:3001/api/health](http://localhost:3001/api/health) or **Dashboard → Settings**
+- Community: **Dashboard → Community**
+- Chat: **Ask AI**
+
+If you change `.env.local`, restart `pnpm dev`.
+
+`GET /api/health` should look like this when both are ready:
+
+```json
+{ "ok": true, "mongo": { "connected": true }, "gemini": { "configured": true } }
+```
+
+### Environment variables
 
 | Variable | Description | Required |
 |----------|-------------|----------|
-| MONGODB_URI | MongoDB connection string for persistent local storage | Recommended |
-| MONGODB_DB | MongoDB database name to use (defaults to `agrismart_local`) | No |
-| GOOGLE_GENERATIVE_AI_API_KEY | Google AI API key for Gemini Vision scans and chat | Yes for Gemini scans |
+| MONGODB_URI | MongoDB connection string | Yes for persistent data |
+| MONGODB_DB | Database name (defaults to `agrismart_local`) | No |
+| GOOGLE_GENERATIVE_AI_API_KEY | Google AI Studio key for Gemini Vision scans and Ask AI | Yes for Gemini |
 | GEMINI_API_KEY | Alias for `GOOGLE_GENERATIVE_AI_API_KEY` | No |
-| JWT_SECRET | Secret for JWT token signing | Yes |
-| NEXT_PUBLIC_BACKEND_URL | Base URL for the Python cassava fallback | No |
+| JWT_SECRET | Secret for JWT cookie signing | Yes |
+| NEXT_PUBLIC_BACKEND_URL | Base URL for the optional Python cassava fallback | No |
 | PREDICTION_API_URL | Full predict endpoint, e.g. `http://localhost:8000/predict` | No |
 
 Scanning uses **Gemini Vision first**. The Next.js `/api/predict` route sends the photo plus selected crop category to Gemini (`gemini-2.5-flash`, then `gemini-flash-latest`) and asks for structured JSON: crop, disease, confidence, severity grade, symptoms, and a treatment plan. That JSON is stored on the scan document in MongoDB.
@@ -142,6 +159,10 @@ Open your browser and navigate to `http://localhost:3001`
 | Command | Description |
 |---------|-------------|
 | `pnpm dev` | Start development server on port 3001 |
+| `pnpm dev:clean` | Clear the Next.js cache and start the server (use this after changing `.env.local`) |
+| `pnpm setup:local` | Start MongoDB, wait for it, and seed demo data |
+| `pnpm check:env` | Check MongoDB without reseeding |
+| `pnpm seed:local` | Reload demo farmers, farms, posts, and scans |
 | `pnpm build` | Build the application for production |
 | `pnpm start` | Start the production server |
 
@@ -199,10 +220,10 @@ cassava_frontend/
 5. Review disease detection, severity grade, symptoms, and the chemical / organic / cultural treatment plan
 
 ### AI Chat Functionality
-1. Go to the "Chat" section in the dashboard
-2. Type your question about crop health for cassava, tomato, pepper, or fruit trees
-3. Receive expert advice powered by Google Gemini AI
-4. From a scan report, click "Ask AI for More Details". Chat loads that scan from MongoDB and sends crop, disease, severity, symptoms, and treatment to Gemini as system context.
+1. Open **Ask AI** in the dashboard
+2. Tap one of your MongoDB scans, or open a scan report and click **Ask AI about this scan**
+3. Gemini receives that scan (crop, disease, severity, symptoms, treatment) as system context
+4. Type a follow-up question, or tap a suggested question
 
 ## 🌐 API Documentation
 
@@ -233,13 +254,45 @@ cassava_frontend/
 - `POST /api/auth/register` - User registration
 - `POST /api/auth/login` - User login  
 
-## 🚀 Deployment Guide
+## 🚀 Deployment (no server disk required)
 
-### Vercel (Recommended)
-1. Push your code to a Git repository
-2. Import your project in [Vercel](https://vercel.com)
-3. Configure environment variables in Vercel dashboard
-4. Deploy automatically on pushes to main branch
+This repo is **already one Next.js app**. Pages and APIs live together:
+
+- UI: `src/app/...`
+- Auth, scans, Ask AI, Mongo: `src/app/api/...`
+
+There is no separate Express or FastAPI server to deploy. The Python folder is an optional local cassava fallback only. Production scans and Ask AI use Gemini.
+
+Cursor Cloud Agents are for coding, not for hosting a public website. Deploy on **Vercel (free)** and store data on **MongoDB Atlas (free)**. Atlas is cloud storage, so you do not need Docker or a VPS disk.
+
+### 1. MongoDB Atlas (free)
+
+1. Create an account at [https://www.mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a free M0 cluster
+3. Create a database user
+4. Allow access from anywhere (`0.0.0.0/0`) for Vercel
+5. Copy the connection string, for example `mongodb+srv://USER:PASSWORD@cluster.mongodb.net/`
+
+### 2. Vercel (free)
+
+1. Push this branch to GitHub
+2. Import the repo at [https://vercel.com](https://vercel.com)
+3. Framework: Next.js
+4. Set these environment variables:
+
+```env
+MONGODB_URI="mongodb+srv://USER:PASSWORD@cluster.mongodb.net/"
+MONGODB_DB="agrismart"
+GOOGLE_GENERATIVE_AI_API_KEY="your-gemini-auth-key"
+GEMINI_API_KEY="your-gemini-auth-key"
+JWT_SECRET="a-long-random-secret"
+```
+
+5. Deploy. Vercel gives you a public URL.
+
+Do not upload `.env.local`. Set secrets only in the Vercel dashboard.
+
+On Vercel, scan photos are stored in MongoDB (not on disk). Ask AI and scans use Gemini, so you do not run `pnpm predict:server`.
 
 ## 🤝 Contributing
 
@@ -259,11 +312,15 @@ This project is licensed under the MIT License.
 
 #### 2. MongoDB Connection Errors
 - **Issue**: Data disappears after restart, or logs show "MongoDB connection failed"
-- **Solution**: Start MongoDB with `docker compose up -d` and confirm `MONGODB_URI` is set in `.env.local`
+- **Solution**: Run `pnpm setup:local` (or `docker compose up -d`) and confirm `MONGODB_URI` is set in `.env.local`. Check [http://localhost:3001/api/health](http://localhost:3001/api/health).
 
-#### 3. Prediction Service Unavailable
-- **Issue**: "Prediction service is currently unavailable"
-- **Solution**: Set a real `GOOGLE_GENERATIVE_AI_API_KEY` (or `GEMINI_API_KEY`) in `.env.local`, or start the local cassava fallback with `pnpm predict:server`
+#### 3. Gemini or prediction unavailable
+- **Issue**: Ask AI says it is unavailable, or scans skip Gemini
+- **Solution**: Put a real Google AI Studio key in `.env.local` as `GOOGLE_GENERATIVE_AI_API_KEY`, then stop `pnpm dev` and start it again. Placeholder text such as `your-google-api-key-here` is ignored. The Python fallback is optional: `pnpm predict:server`.
+
+#### 4. "Module factory is not available" after inserting the Gemini key
+- **Issue**: Next.js shows a Runtime Error about `boundary-components.js` or `module factory is not available` right after you save `.env.local`
+- **Solution**: This is a hot-reload crash, not a bad API key. Stop the server with Ctrl+C, then run `pnpm dev:clean` and hard-refresh the browser.
 
 ---
 

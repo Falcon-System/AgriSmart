@@ -1,314 +1,325 @@
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useQuery } from "@tanstack/react-query";
-import { Send, ImageIcon, Loader2, Trash2 } from "lucide-react";
+import { Send, Loader2, RotateCcw, Leaf, X } from "lucide-react";
 import { Streamdown } from "streamdown";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { client } from "@/utils/orpc";
+import { orpc, client } from "@/utils/orpc";
+
+const GENERAL_SUGGESTIONS = [
+  "How do I treat cassava mosaic?",
+  "My tomato leaves have dark spots",
+  "What causes mango fruit spots?",
+  "When should I remove infected plants?",
+];
+
+const SCAN_SUGGESTIONS = [
+  "Explain this scan in simple words",
+  "What should I do first?",
+  "Should I remove infected plants?",
+  "How do I stop it spreading?",
+];
+
+function farmerFacingText(text: string) {
+  if (/API[_ ]?key not valid|API_KEY_INVALID|GOOGLE_GENERATIVE_AI|GEMINI_API_KEY/i.test(text)) {
+    return "AgriSmart AI is not available right now. Please try again in a moment.";
+  }
+  if (/model is not enabled|enable the Gemini API/i.test(text)) {
+    return "AgriSmart AI is retrying. Refresh the page and ask again.";
+  }
+  return text.replace(/Gemini Vision/gi, "AgriSmart AI").replace(/Gemini/gi, "AgriSmart AI") ||
+    "Could not get an answer. Check your connection and try again.";
+}
+
+function chatErrorMessage(error: unknown) {
+  const raw = error instanceof Error ? error.message : String(error || "");
+  try {
+    const parsed = JSON.parse(raw) as { error?: string };
+    if (parsed?.error) return farmerFacingText(parsed.error);
+  } catch {
+    // The transport may send plain text.
+  }
+  return farmerFacingText(raw) || "Could not get an answer. Check your connection and try again.";
+}
+
+function scanLabel(scan: Record<string, unknown> | null | undefined) {
+  if (!scan) return "Scan";
+  return String(scan.disease || scan.diseaseDetected || "Scan");
+}
+
+function scanMeta(scan: Record<string, unknown> | null | undefined) {
+  if (!scan) return "";
+  return [scan.detectedCrop, scan.severityGrade || (scan.severity != null ? `${scan.severity}%` : "")]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join(" · ");
+}
 
 function ChatPageInner() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const scanId = searchParams.get("scanId");
   const [input, setInput] = useState("");
-  const [imageAttachment, setImageAttachment] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const scanIdRef = useRef(scanId);
   scanIdRef.current = scanId;
+
+  const scansQuery = useQuery(orpc.scans.list.queryOptions());
+  const healthQuery = useQuery({
+    queryKey: ["setup-health"],
+    queryFn: async () => {
+      const response = await fetch("/api/health");
+      if (!response.ok) throw new Error("Could not load setup status");
+      return response.json() as Promise<{
+        groq?: { configured?: boolean };
+        gemini: { configured: boolean; hint?: string; googleAccepted?: boolean };
+      }>;
+    },
+  });
+  const geminiReady =
+    healthQuery.data?.groq?.configured ||
+    healthQuery.data?.gemini.googleAccepted ||
+    healthQuery.data?.gemini.configured !== false;
+  const scans = (scansQuery.data ?? []) as Array<Record<string, unknown>>;
+  const selectedScan = scans.find((scan) => scan.id === scanId) ?? null;
 
   const scanQuery = useQuery({
     queryKey: ["scans", "get", scanId],
     queryFn: () => (client.scans.get as any)({ id: scanId }),
-    enabled: Boolean(scanId),
+    enabled: Boolean(scanId) && !selectedScan,
   });
-  const scan = scanQuery.data;
+  const scan = (selectedScan || scanQuery.data) as Record<string, unknown> | null;
 
-  const { messages, sendMessage, status, setMessages } = useChat({
+  const { messages, sendMessage, status, setMessages, error } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/ai",
+      body: () => ({ scanId: scanIdRef.current || undefined, scan_id: scanIdRef.current || undefined }),
       prepareSendMessagesRequest: ({ id, messages, body }) => ({
         body: {
           ...body,
           id,
           messages,
-          scanId: scanIdRef.current,
+          scanId: scanIdRef.current || undefined,
+          scan_id: scanIdRef.current || undefined,
         },
       }),
     }),
   });
 
+  const isBusy = status === "submitted" || status === "streaming";
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, isBusy]);
 
   useEffect(() => {
-    if (!scanId || !scan?.disease) return;
-    const key = `agrismart-scan-chat:${scanId}`;
-    if (sessionStorage.getItem(key)) return;
-    sessionStorage.setItem(key, "1");
-    sendMessage({
-      text: "Based on this scan, explain the diagnosis and what I should do immediately.",
-    });
-  }, [scanId, scan, sendMessage]);
+    inputRef.current?.focus();
+  }, [scanId]);
 
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      setImageAttachment(ev.target?.result as string);
-    };
-    reader.readAsDataURL(file);
+  const ask = (text: string) => {
+    const question = text.trim();
+    if (!question || isBusy || !geminiReady) return;
+    sendMessage({ text: question });
+    setInput("");
+    inputRef.current?.focus();
   };
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const text = input.trim();
-    if (!text && !imageAttachment) return;
-
-    sendMessage({ text: text || "Analyze this cassava leaf image" });
-    setInput("");
-    setImageAttachment(null);
+    ask(input);
   };
 
-  const clearChat = () => {
+  const startNewChat = () => {
     setMessages([]);
+    setInput("");
+    inputRef.current?.focus();
   };
 
-  const isStreaming = status === "streaming";
+  const chooseScan = (id: string) => {
+    setMessages([]);
+    router.replace(`/dashboard/chat?scanId=${id}`);
+  };
+
+  const clearScan = () => {
+    setMessages([]);
+    router.replace("/dashboard/chat");
+  };
+
+  const lastMessage = messages[messages.length - 1];
+  const showTyping = isBusy && lastMessage?.role !== "assistant";
+  const suggestions = scan ? SCAN_SUGGESTIONS : GENERAL_SUGGESTIONS;
+  const recentScans = scans.slice(0, 4);
 
   return (
-    <div className="flex-1 min-h-0 flex flex-col max-w-5xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-3 shrink-0 px-1">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-              AI Agronomist
-            </h1>
-            <Badge variant="secondary" className="bg-primary/10 text-primary border-none text-[10px] uppercase tracking-widest font-bold">
-              Beta
-            </Badge>
-          </div>
-          <div className="text-muted-foreground text-sm flex items-center gap-1.5">
-            <div className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            {scanId ? "Advising from your saved scan diagnosis" : "Your expert assistant for cassava, tomato, pepper, and fruit-tree health"}
-          </div>
+    <div className="flex flex-1 min-h-0 flex-col w-full max-w-2xl mx-auto">
+      <div className="flex items-center justify-between gap-3 shrink-0 pb-3">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Ask AI</h1>
+          <p className="text-sm text-muted-foreground">
+            {scan ? "AgriSmart AI will use this scan" : "Pick a scan, or ask a crop question"}
+          </p>
         </div>
         {messages.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={clearChat} className="text-muted-foreground hover:text-destructive hover:bg-destructive/10">
-            <Trash2 className="mr-2 size-4" />
-            Reset Session
+          <Button variant="ghost" size="sm" onClick={startNewChat} className="text-muted-foreground">
+            <RotateCcw className="mr-2 size-4" />
+            New chat
           </Button>
         )}
       </div>
 
-      {scan && (
-        <div className="mb-3 px-4 py-3 rounded-2xl bg-primary/5 border border-primary/10 text-sm flex flex-wrap items-center gap-2">
-          <Badge variant="secondary" className="bg-primary/10 text-primary border-none">Scan context</Badge>
-          <span className="font-medium">{scan.disease}</span>
-          {(scan.detectedCrop || scan.cropCategory || scan.severityGrade) && (
-            <span className="text-muted-foreground">
-              {[scan.detectedCrop, scan.cropCategory, scan.severityGrade].filter(Boolean).join(" · ")}
-            </span>
-          )}
-          {scanId && (
-            <Link href={`/dashboard/scans/${scanId}`} className="ml-auto text-primary text-xs font-semibold hover:underline">
-              View report
-            </Link>
-          )}
+      {healthQuery.data && !geminiReady && (
+        <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
+          AgriSmart AI is not ready yet. Please try again in a moment.
         </div>
       )}
 
-      <Card className="flex-1 flex flex-col overflow-hidden border-border/40 bg-card/30 backdrop-blur-xl rounded-[2.5rem] shadow-2xl shadow-primary/5">
-        <ScrollArea className="flex-1 px-4 py-8">
-          {messages.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-8 mt-12">
-              <div className="size-24 rounded-[2rem] bg-gradient-to-br from-primary to-primary/40 flex items-center justify-center mb-8 shadow-xl shadow-primary/20 rotate-3">
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  className="size-10 text-white"
-                >
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                  <path d="M2 17l10 5 10-5" />
-                  <path d="M2 12l10 5 10-5" />
-                </svg>
-              </div>
-              <h2 className="text-2xl font-bold mb-3 tracking-tight">How can I help you today?</h2>
-              <p className="text-muted-foreground max-w-sm text-sm leading-relaxed mb-10">
-                Ask about cassava, tomato, pepper, mango, and other supported crops — symptoms, treatments, or field practices.
-              </p>
-              <div className="grid gap-3 sm:grid-cols-2 max-w-xl w-full">
-                {[
-                  "How to identify Cassava Mosaic Disease?",
-                  "Best organic treatments for tomato blight",
-                  "Explain mango anthracnose symptoms",
-                  "Fertilization schedule for cassava",
-                ].map((suggestion) => (
-                  <Button
-                    key={suggestion}
-                    variant="outline"
-                    className="text-left h-auto py-4 px-5 justify-start border-border/40 bg-background/50 hover:bg-primary/5 hover:border-primary/30 rounded-2xl transition-all group"
-                    onClick={() => setInput(suggestion)}
-                  >
-                    <span className="text-sm font-medium">{suggestion}</span>
-                    <Send className="size-3.5 ml-auto opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
-                  </Button>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-8 max-w-4xl mx-auto">
-              {messages.map((message) => (
-                <div
-                  key={message.id}
-                  className={cn(
-                    "flex gap-4 animate-in fade-in slide-in-from-bottom-2",
-                    message.role === "user" ? "flex-row-reverse" : "flex-row"
-                  )}
-                >
-                  <div className={cn(
-                    "size-10 rounded-full flex items-center justify-center shrink-0 border-4 border-background shadow-sm",
-                    message.role === "user" ? "bg-secondary" : "bg-primary"
-                  )}>
-                    {message.role === "assistant" ? (
-                      <span className="text-[10px] font-black text-white">AI</span>
-                    ) : (
-                      <span className="text-[10px] font-black text-secondary-foreground">ME</span>
-                    )}
-                  </div>
-                  <div
-                    className={cn(
-                      "max-w-[85%] rounded-[1.5rem] px-5 py-3.5 shadow-sm",
-                      message.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-tr-none"
-                        : "bg-muted/80 backdrop-blur-md rounded-tl-none border border-border/20"
-                    )}
-                  >
-                    {message.parts?.map((part, index) => {
-                      if (part.type === "text") {
-                        return (
-                          <div key={index} className="prose prose-sm dark:prose-invert max-w-none prose-p:leading-relaxed prose-strong:text-inherit">
-                            <Streamdown isAnimating={isStreaming && message.role === "assistant"}>
-                              {part.text}
-                            </Streamdown>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })}
-                  </div>
-                </div>
-              ))}
-              {isStreaming && (
-                <div className="flex gap-4">
-                  <div className="size-10 rounded-full bg-primary flex items-center justify-center shrink-0 border-4 border-background shadow-sm">
-                    <span className="text-[10px] font-black text-white">AI</span>
-                  </div>
-                  <div className="bg-muted/80 backdrop-blur-md rounded-[1.5rem] rounded-tl-none border border-border/20 px-5 py-4">
-                    <div className="flex gap-1">
-                      <div className="size-1.5 rounded-full bg-primary/40 animate-bounce" />
-                      <div className="size-1.5 rounded-full bg-primary/40 animate-bounce [animation-delay:0.2s]" />
-                      <div className="size-1.5 rounded-full bg-primary/40 animate-bounce [animation-delay:0.4s]" />
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={messagesEndRef} className="h-4" />
-            </div>
-          )}
-        </ScrollArea>
-
-        {imageAttachment && (
-          <div className="px-6 py-4 border-t border-border/20 bg-muted/20 backdrop-blur-md">
-            <div className="relative inline-block group">
-              <img
-                src={imageAttachment}
-                alt="Attachment"
-                className="h-24 w-24 rounded-2xl object-cover ring-4 ring-background shadow-lg"
-              />
+      {scan ? (
+        <div className="mb-3 flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm dark:border-emerald-900 dark:bg-emerald-950/40">
+          <Leaf className="size-5 text-emerald-700 dark:text-emerald-400 shrink-0" />
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold truncate">{scanLabel(scan)}</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {scanMeta(scan) || "This scan is attached to the chat"}
+            </p>
+          </div>
+          <Link href={`/dashboard/scans/${scanId}`} className="text-xs font-medium text-emerald-800 dark:text-emerald-300 shrink-0">
+            Report
+          </Link>
+          <button type="button" onClick={clearScan} className="text-muted-foreground hover:text-foreground" aria-label="Remove scan">
+            <X className="size-4" />
+          </button>
+        </div>
+      ) : recentScans.length > 0 ? (
+        <div className="mb-3 rounded-2xl border bg-muted/30 p-3">
+          <p className="text-sm font-medium mb-2">Use a scan from MongoDB</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {recentScans.map((item) => (
               <button
+                key={String(item.id)}
                 type="button"
-                className="absolute -top-3 -right-3 size-8 bg-destructive text-white rounded-full flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform"
-                onClick={() => setImageAttachment(null)}
+                onClick={() => chooseScan(String(item.id))}
+                className="text-left rounded-xl border bg-background px-3 py-2 hover:border-primary hover:bg-primary/5 transition-colors"
               >
-                <Trash2 className="size-4" />
+                <p className="text-sm font-medium truncate">{scanLabel(item)}</p>
+                <p className="text-xs text-muted-foreground truncate">{scanMeta(item) || "Open in Ask AI"}</p>
               </button>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex-1 min-h-0 overflow-y-auto rounded-3xl border bg-background">
+        {messages.length === 0 ? (
+          <div className="h-full flex flex-col justify-center p-6 sm:p-8">
+            <h2 className="text-lg font-semibold mb-1">
+              {scan ? `Ask about ${scanLabel(scan)}` : "What do you want to know?"}
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              {scan ? "Tap a question. The answer uses your scan result." : "Tap a question or type your own."}
+            </p>
+            <div className="flex flex-col gap-2">
+              {suggestions.map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  disabled={isBusy || !geminiReady}
+                  onClick={() => ask(suggestion)}
+                  className="text-left rounded-2xl border px-4 py-3 text-sm hover:border-primary hover:bg-primary/5 transition-colors disabled:opacity-50"
+                >
+                  {suggestion}
+                </button>
+              ))}
             </div>
           </div>
-        )}
-
-        <div className="p-4 sm:p-6 border-t border-border/20 bg-background/50 backdrop-blur-xl">
-          <form
-            onSubmit={handleSubmit}
-            className="flex items-center gap-3 max-w-4xl mx-auto"
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageSelect}
-              className="hidden"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => fileInputRef.current?.click()}
-              className="size-12 rounded-2xl hover:bg-primary/10 hover:text-primary transition-colors shrink-0"
-            >
-              <ImageIcon className="size-6" />
-            </Button>
-            <div className="relative flex-1 group">
-              <Input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={scan ? "Ask a follow-up about this scan..." : "Ask about crop health..."}
-                className="h-12 flex-1 bg-muted/40 border-border/40 rounded-2xl px-5 focus-visible:ring-primary/20 focus-visible:border-primary/30 transition-all pr-12"
-                disabled={isStreaming}
-              />
-              <Button
-                type="submit"
-                size="icon"
-                disabled={isStreaming || (!input.trim() && !imageAttachment)}
-                className="absolute right-1.5 top-1.5 size-9 rounded-xl shadow-lg transition-all active:scale-95"
+        ) : (
+          <div className="p-4 sm:p-5 space-y-3">
+            {messages.map((message) => (
+              <div
+                key={message.id}
+                className={cn("flex", message.role === "user" ? "justify-end" : "justify-start")}
               >
-                {isStreaming ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Send className="size-4" />
-                )}
-              </Button>
-            </div>
-          </form>
-          <p className="text-[10px] text-center text-muted-foreground mt-3 uppercase tracking-tighter">
-            AgriSmart AI may provide inaccurate information. Always verify with local experts.
-          </p>
+                <div
+                  className={cn(
+                    "max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                    message.role === "user"
+                      ? "bg-primary text-primary-foreground rounded-br-md"
+                      : "bg-muted rounded-bl-md"
+                  )}
+                >
+                  {message.parts?.map((part, index) => {
+                    if (part.type !== "text") return null;
+                    const text = farmerFacingText(part.text);
+                    if (message.role === "user") {
+                      return <p key={index}>{text}</p>;
+                    }
+                    return (
+                      <div key={index} className="prose prose-sm dark:prose-invert max-w-none prose-p:my-2">
+                        <Streamdown isAnimating={isBusy && message.role === "assistant"}>
+                          {text}
+                        </Streamdown>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+            {showTyping && (
+              <div className="flex justify-start">
+                <div className="bg-muted rounded-2xl rounded-bl-md px-4 py-3 text-sm text-muted-foreground">
+                  Thinking…
+                </div>
+              </div>
+            )}
+            {error && (
+              <p className="text-sm text-destructive px-1">
+                {chatErrorMessage(error)}
+              </p>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        )}
+      </div>
+
+      <form onSubmit={handleSubmit} className="pt-3 shrink-0">
+        <div className="flex items-center gap-2 rounded-full border bg-background px-3 py-1.5 focus-within:border-primary">
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={scan ? `Ask about ${scanLabel(scan)}` : "Type your question"}
+            aria-label="Ask a crop health question"
+            className="flex-1 h-11 bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground"
+            disabled={isBusy || !geminiReady}
+          />
+          <Button
+            type="submit"
+            size="icon"
+            className="size-10 rounded-full"
+            disabled={isBusy || !geminiReady || !input.trim()}
+            aria-label="Send"
+          >
+            {isBusy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+          </Button>
         </div>
-      </Card>
+        <p className="text-xs text-muted-foreground text-center mt-2">
+          Advice is a guide only. Confirm with a local agronomist before spraying.
+        </p>
+      </form>
     </div>
   );
 }
 
 export default function ChatPage() {
   return (
-    <Suspense fallback={<div className="flex-1 min-h-0" />}>
+    <Suspense fallback={<div className="flex-1 min-h-0 flex items-center justify-center text-sm text-muted-foreground">Loading Ask AI…</div>}>
       <ChatPageInner />
     </Suspense>
   );

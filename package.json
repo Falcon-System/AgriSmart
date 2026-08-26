@@ -3,10 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --port 3001",
+    "dev": "next dev --port 3001 --webpack",
+    "dev:turbo": "next dev --port 3001 --turbopack",
+    "dev:clean": "rm -rf .next && next dev --port 3001 --webpack",
     "build": "next build",
     "start": "next start",
-    "predict:server": "prediction-service/.venv/bin/uvicorn --app-dir prediction-service main:app --host 127.0.0.1 --port 8000"
+    "predict:server": "prediction-service/.venv/bin/uvicorn --app-dir prediction-service main:app --host 127.0.0.1 --port 8000",
+    "setup:local": "node scripts/setup-local.mjs",
+    "check:env": "node scripts/setup-local.mjs --check",
+    "seed:local": "node scripts/seed-local.mjs",
+    "set:gemini-key": "node scripts/set-gemini-key.mjs"
   },
   "dependencies": {
     "@ai-sdk/devtools": "^0.0.2",
@@ -32,6 +38,7 @@
     "ai": "^6.0.3",
     "babel-plugin-react-compiler": "^1.0.0",
     "bcrypt": "^6.0.0",
+    "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dotenv": "^16.3.1",
@@ -57,6 +64,7 @@
     "@tailwindcss/postcss": "^4.1.10",
     "@tanstack/react-query-devtools": "^5.91.1",
     "@types/bcrypt": "^6.0.0",
+    "@types/bcryptjs": "^3.0.0",
     "@types/jest": "^30.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^20",
