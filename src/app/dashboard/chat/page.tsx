@@ -29,7 +29,10 @@ const SCAN_SUGGESTIONS = [
 
 function farmerFacingText(text: string) {
   if (/API[_ ]?key not valid|API_KEY_INVALID|GOOGLE_GENERATIVE_AI|GEMINI_API_KEY/i.test(text)) {
-    return "Google rejected this API key. Create a new Gemini Auth key at aistudio.google.com/apikey, restrict it to the Gemini API, then save it in Settings.";
+    return "Google rejected this API key. Create a new Gemini Auth key at aistudio.google.com/apikey, restrict it to the Gemini API, then save it in Vercel and Redeploy.";
+  }
+  if (/model is not enabled|enable the Gemini API/i.test(text)) {
+    return "Ask AI is retrying Gemini the same way leaf scans do. Refresh the page and ask again.";
   }
   return text;
 }
