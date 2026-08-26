@@ -30,7 +30,7 @@ function coerceCropCategory(value: unknown): unknown {
   if (normalized.includes("fruit") || normalized.includes("tree") || normalized.includes("mango") || normalized.includes("citrus")) {
     return "Tree Fruit";
   }
-  if (normalized.includes("unknown")) return "Unknown";
+  if (normalized.includes("unknown") || normalized.includes("veget")) return "Unknown";
   return value;
 }
 

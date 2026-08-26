@@ -1,10 +1,7 @@
 import { parseCropScanResult, type CropScanResult } from "@/lib/crop-scan";
 
-const GROQ_CHAT_MODELS = ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"];
-const GROQ_VISION_MODELS = [
-  "meta-llama/llama-4-scout-17b-16e-instruct",
-  "meta-llama/llama-4-maverick-17b-128e-instruct",
-];
+const GROQ_CHAT_MODELS = ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"];
+const GROQ_VISION_MODELS = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b"];
 
 export function looksLikeGroqApiKey(key: string) {
   return /^gsk_[A-Za-z0-9]{20,}$/.test(String(key || "").trim());
@@ -18,9 +15,16 @@ export function isGroqConfigured() {
   return getGroqApiKey().length >= 20;
 }
 
+function stripThink(text: string) {
+  return String(text || "")
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .trim();
+}
+
 function extractJsonObject(text: string) {
-  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  const raw = (fenced?.[1] || text).trim();
+  const cleaned = stripThink(text);
+  const fenced = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const raw = (fenced?.[1] || cleaned).trim();
   const start = raw.indexOf("{");
   const end = raw.lastIndexOf("}");
   if (start < 0 || end <= start) {
@@ -50,6 +54,7 @@ async function groqChatCompletions(options: {
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${options.apiKey}`,
+      "User-Agent": "AgriSmart/1.0",
     },
     signal: AbortSignal.timeout(options.timeoutMs ?? 20000),
     body: JSON.stringify({
@@ -66,7 +71,7 @@ async function groqChatCompletions(options: {
   if (!response.ok) {
     throw new Error(groqErrorMessage(payload, response.status));
   }
-  const text = payload?.choices?.[0]?.message?.content?.trim() || "";
+  const text = stripThink(payload?.choices?.[0]?.message?.content?.trim() || "");
   if (!text) throw new Error("AgriSmart AI returned an empty answer.");
   return text;
 }
@@ -80,8 +85,12 @@ export async function predictCropScanWithGroq(options: {
     ? options.image
     : `data:image/jpeg;base64,${options.image}`;
   const prompt = `Diagnose this plant photo quickly for AgriSmart.
-Crop category: ${options.selectedCategory}.
-Return JSON with keys crop_category, detected_crop, disease_detected, is_healthy, confidence_score (0-1), severity_grade (None|Low|Moderate|Severe|Critical), symptoms_observed (array of short strings), and treatment { chemical_control, organic_biological, cultural_practices } each an array of 2 short field actions.
+Selected crop category: ${options.selectedCategory}.
+Return JSON only with keys crop_category, detected_crop, disease_detected, is_healthy, confidence_score (0-1), severity_grade, symptoms_observed, and treatment.
+crop_category must be one of: Root & Tuber, Solanaceous, Tree Fruit, Unknown.
+severity_grade must be one of: None, Low, Moderate, Severe, Critical.
+symptoms_observed is an array of short strings.
+treatment is { chemical_control, organic_biological, cultural_practices } each an array of 2 short field actions.
 No product names or dosages. If it is not a plant, set crop_category to Unknown.`;
 
   let lastError: unknown;
