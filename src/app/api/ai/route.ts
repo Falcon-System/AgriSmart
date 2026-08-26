@@ -16,8 +16,9 @@ export async function POST(req: Request) {
   if (!isGeminiConfigured()) {
     return NextResponse.json(
       {
-        error:
-          "Gemini is not ready. Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local, then stop the app and run pnpm dev:clean.",
+        error: process.env.VERCEL
+          ? "Gemini is not ready. Set GEMINI_API_KEY in Vercel to an Auth key from https://aistudio.google.com/apikey, then Redeploy."
+          : "Gemini is not ready. Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local, then stop the app and run pnpm dev:clean.",
       },
       { status: 503 }
     );

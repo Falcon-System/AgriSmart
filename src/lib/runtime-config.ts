@@ -42,16 +42,21 @@ function sanitizeSecret(value?: string | null) {
     .trim();
 }
 
+export function looksLikeGeminiApiKey(key: string) {
+  return /^AIza[0-9A-Za-z_\-]{20,}$/.test(key) || /^AQ\.[A-Za-z0-9._\-]{20,}$/.test(key);
+}
+
 function extractGoogleApiKey(value: string) {
   const compact = value.replace(/\s+/g, "");
-  const match = compact.match(/AIza[0-9A-Za-z_\-]{20,}/);
-  return match?.[0] || compact;
+  const authMatch = compact.match(/AQ\.[A-Za-z0-9._\-]{20,}/);
+  const studioMatch = compact.match(/AIza[0-9A-Za-z_\-]{20,}/);
+  return authMatch?.[0] || studioMatch?.[0] || compact;
 }
 
 export function isPlaceholderSecret(value?: string | null) {
   const key = extractGoogleApiKey(sanitizeSecret(value));
   if (!key) return true;
-  if (/^AIza[0-9A-Za-z_\-]{20,}$/.test(key)) return false;
+  if (looksLikeGeminiApiKey(key)) return false;
   return key.length < 20 || PLACEHOLDER_SECRET.test(key);
 }
 
@@ -186,7 +191,7 @@ function mergedFileEnv() {
 
 function inspectCandidate(name: string, value: string, source: string): Omit<GeminiKeyStatus, "cwd" | "filesFound" | "keyNamesFound" | "variableStatus"> {
   const key = extractGoogleApiKey(sanitizeSecret(value));
-  const looksLikeGoogleKey = /^AIza[0-9A-Za-z_\-]{20,}$/.test(key);
+  const looksLikeGoogleKey = looksLikeGeminiApiKey(key);
 
   if (!key) {
     return {
@@ -238,7 +243,7 @@ function inspectCandidate(name: string, value: string, source: string): Omit<Gem
     source,
     keyLength: key.length,
     looksLikeGoogleKey: false,
-    hint: "A key is loaded. If Ask AI still fails, create a new Google AI Studio key.",
+      hint: "A key is loaded, but it does not look like a Gemini Auth key (AQ....) or Studio key (AIza...). If scans fail, create a new key at https://aistudio.google.com/apikey.",
   };
 }
 
@@ -352,11 +357,14 @@ export function isGeminiConfigured() {
 export function friendlyGeminiError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "");
 
-  if (/API_KEY_INVALID|API key not valid|invalid api key|API key not found/i.test(message)) {
-    return "Google rejected this API key. Create a new Gemini Auth key at https://aistudio.google.com/apikey, restrict it to the Gemini API, then save it in Settings. Maps keys and unrestricted Cloud keys will not work.";
+  if (/API_KEY_INVALID|API key not valid|invalid api key|API key not found|invalid authentication|UNAUTHENTICATED/i.test(message)) {
+    return "Google rejected this API key. Create a Gemini Auth key at https://aistudio.google.com/apikey (it starts with AQ.), set GEMINI_API_KEY in Vercel, then Redeploy. Maps keys and unrestricted Cloud keys will not work.";
   }
   if (/quota|RESOURCE_EXHAUSTED|429|rate.?limit/i.test(message)) {
     return "Gemini is busy or over quota. Wait a minute and try again.";
+  }
+  if (/aborted|timeout|AbortError|UND_ERR_CONNECT_TIMEOUT/i.test(message)) {
+    return "Gemini did not respond in time. Check the API key and try the scan again.";
   }
   if (/Fetch|ENOTFOUND|ECONNREFUSED|network|Failed to fetch/i.test(message)) {
     return "Could not reach Gemini. Check your internet connection and try again.";

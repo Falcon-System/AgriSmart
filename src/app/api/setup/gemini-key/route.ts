@@ -21,7 +21,9 @@ function extractKey(value: string) {
     .trim()
     .replace(/^["']|["']$/g, "")
     .replace(/\s+/g, "");
-  return compact.match(/AIza[0-9A-Za-z_\-]{20,}/)?.[0] || compact;
+  return compact.match(/AQ\.[A-Za-z0-9._\-]{20,}/)?.[0]
+    || compact.match(/AIza[0-9A-Za-z_\-]{20,}/)?.[0]
+    || compact;
 }
 
 function upsertEnvLocal(updates: Record<string, string>) {

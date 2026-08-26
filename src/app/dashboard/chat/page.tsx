@@ -74,10 +74,11 @@ function ChatPageInner() {
     queryFn: async () => {
       const response = await fetch("/api/health");
       if (!response.ok) throw new Error("Could not load setup status");
-      return response.json() as Promise<{ gemini: { configured: boolean; hint?: string } }>;
+      return response.json() as Promise<{ gemini: { configured: boolean; hint?: string; googleAccepted?: boolean } }>;
     },
   });
-  const geminiReady = healthQuery.data?.gemini.configured !== false;
+  const geminiReady =
+    healthQuery.data?.gemini.googleAccepted ?? healthQuery.data?.gemini.configured !== false;
   const scans = (scansQuery.data ?? []) as Array<Record<string, unknown>>;
   const selectedScan = scans.find((scan) => scan.id === scanId) ?? null;
 
@@ -165,9 +166,9 @@ function ChatPageInner() {
         )}
       </div>
 
-      {healthQuery.data && !healthQuery.data.gemini.configured && (
+      {healthQuery.data && !geminiReady && (
         <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-          Gemini is not ready yet. {healthQuery.data.gemini.hint || "Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local, then stop the server and run pnpm dev:clean."}
+          Gemini is not ready yet. {healthQuery.data.gemini.hint || "Create a Gemini Auth key at aistudio.google.com/apikey, set GEMINI_API_KEY in Vercel, then Redeploy."}
         </div>
       )}
 

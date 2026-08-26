@@ -36,7 +36,7 @@ export default function SettingsPage() {
       if (!response.ok) throw new Error("Could not load setup status");
       return response.json() as Promise<{
         mongo: { connected: boolean; database?: string };
-        gemini: { configured: boolean; hint?: string };
+        gemini: { configured: boolean; hint?: string; googleAccepted?: boolean };
       }>;
     },
   });
@@ -192,10 +192,10 @@ export default function SettingsPage() {
           />
           <SetupStatusRow
             title="Google Gemini"
-            ok={healthQuery.data?.gemini.configured}
+            ok={healthQuery.data?.gemini.googleAccepted ?? healthQuery.data?.gemini.configured}
             loading={healthQuery.isLoading}
-            readyText="API key is set. Scans and Ask AI can use Gemini."
-            missingText={healthQuery.data?.gemini.hint || "Add GOOGLE_GENERATIVE_AI_API_KEY to .env.local, then run pnpm dev:clean."}
+            readyText="Google accepted the Gemini key. Scans and Ask AI can use it."
+            missingText={healthQuery.data?.gemini.hint || "Add a Gemini Auth key from aistudio.google.com/apikey in Vercel, then Redeploy."}
           />
           <div className="space-y-2 pt-2">
             <Label htmlFor="geminiKey">Paste Gemini API key</Label>
@@ -203,7 +203,7 @@ export default function SettingsPage() {
               id="geminiKey"
               type="password"
               autoComplete="off"
-              placeholder="AIza..."
+              placeholder="AQ.... or AIza..."
               value={geminiKey}
               onChange={(e) => setGeminiKey(e.target.value)}
             />
@@ -212,7 +212,7 @@ export default function SettingsPage() {
               Save Gemini key
             </Button>
             <p className="text-xs text-muted-foreground">
-              Create a key at aistudio.google.com/apikey. This saves it as UTF-8 in .env.local on this computer.
+              Create an Auth key at aistudio.google.com/apikey. On your computer this writes .env.local. On Vercel, paste the same key into GEMINI_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY, then Redeploy.
             </p>
           </div>
         </CardContent>

@@ -58,6 +58,7 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
     const [step, setStep] = useState<"capture" | "confirming">("capture");
     const [image, setImage] = useState<string | null>(null);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [analysisError, setAnalysisError] = useState<string | null>(null);
     const [cropCategory, setCropCategory] = useState<string>("Root & Tuber");
     const ignoreDismissUntil = useRef(0);
 
@@ -110,6 +111,7 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
         if (!image) return;
 
         setIsAnalyzing(true);
+        setAnalysisError(null);
         try {
             const response = await fetch("/api/predict", {
                 method: "POST",
@@ -141,7 +143,9 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
             });
         } catch (err: any) {
             console.error("Analysis or Saving Error:", err);
-            toast.error(err.message || "AI Analysis failed. Please try again.");
+            const message = err.message || "AI Analysis failed. Please try again.";
+            setAnalysisError(message);
+            toast.error(message);
             setIsAnalyzing(false);
         }
     }, [image, cropCategory, createMutation]);
@@ -150,6 +154,7 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
         setStep("capture");
         setImage(null);
         setIsAnalyzing(false);
+        setAnalysisError(null);
     };
 
     return (
@@ -250,8 +255,8 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                                                 <Loader2 className="size-16 animate-spin text-primary" />
                                                 <Sparkles className="absolute -top-1 -right-1 size-6 text-yellow-400 animate-pulse" />
                                             </div>
-                                            <h3 className="text-2xl font-black mb-2 tracking-tight">Processing...</h3>
-                                            <p className="text-sm text-zinc-300">Analyzing leaf texture and identifying health markers</p>
+                                            <h3 className="text-2xl font-black mb-2 tracking-tight">Analyzing with Gemini...</h3>
+                                            <p className="text-sm text-zinc-300">Reading the leaf image and preparing a crop health report</p>
                                             <div className="absolute left-0 right-0 h-1 bg-primary/50 shadow-[0_0_15px_rgba(var(--primary),1)] animate-scan-line top-0" />
                                         </div>
                                     )}
@@ -259,12 +264,17 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
 
                                 {!isAnalyzing && (
                                     <div className="space-y-2 shrink-0">
+                                        {analysisError && (
+                                            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/70 dark:text-red-200">
+                                                {analysisError}
+                                            </div>
+                                        )}
                                         <Button
                                             className="w-full h-14 rounded-2xl text-lg font-bold shadow-xl shadow-primary/20 active:scale-[0.98] transition-all bg-primary hover:bg-primary/90 text-primary-foreground"
                                             onClick={startAnalysis}
                                             disabled={isAnalyzing}
                                         >
-                                            Start AI Analysis
+                                            {analysisError ? "Try Analysis Again" : "Start AI Analysis"}
                                         </Button>
                                         <Button
                                             variant="ghost"
@@ -282,7 +292,7 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                     <div className="p-3 bg-white dark:bg-zinc-900 border-t flex justify-center shrink-0">
                         <div className="flex items-center gap-2 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[10px] font-medium text-muted-foreground">
                             <Scan className="size-3" />
-                            <span>Powered by Gemini Vision with a local cassava fallback</span>
+                            <span>Powered by Gemini Vision</span>
                         </div>
                     </div>
                 </div>
