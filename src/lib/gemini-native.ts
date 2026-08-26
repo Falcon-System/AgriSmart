@@ -1,7 +1,7 @@
 import { parseCropScanResult, type CropScanResult } from "@/lib/crop-scan";
 import { friendlyGeminiError } from "@/lib/runtime-config";
 
-const GEMINI_MODELS = ["gemini-2.5-flash-lite", "gemini-2.0-flash", "gemini-2.5-flash"];
+const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"];
 
 const CROP_SCAN_SCHEMA = {
   type: "OBJECT",
@@ -126,18 +126,7 @@ async function generateContentJson(options: {
   prompt: string;
   imageBase64: string;
   mimeType: string;
-  disableThinking?: boolean;
 }) {
-  const generationConfig: Record<string, unknown> = {
-    temperature: 0.1,
-    maxOutputTokens: 512,
-    responseMimeType: "application/json",
-    responseSchema: CROP_SCAN_SCHEMA,
-  };
-  if (!options.disableThinking) {
-    generationConfig.thinkingConfig = { thinkingBudget: 0 };
-  }
-
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${options.modelId}:generateContent`,
     {
@@ -146,7 +135,7 @@ async function generateContentJson(options: {
         "Content-Type": "application/json",
         "x-goog-api-key": options.apiKey,
       },
-      signal: AbortSignal.timeout(12000),
+      signal: AbortSignal.timeout(25000),
       body: JSON.stringify({
         contents: [
           {
@@ -157,7 +146,12 @@ async function generateContentJson(options: {
             ],
           },
         ],
-        generationConfig,
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 640,
+          responseMimeType: "application/json",
+          responseSchema: CROP_SCAN_SCHEMA,
+        },
       }),
     }
   );
@@ -170,11 +164,7 @@ async function generateContentJson(options: {
     | null;
 
   if (!response.ok) {
-    const message = googleErrorMessage(payload, response.status);
-    if (!options.disableThinking && /thinking|unknown name|invalid argument/i.test(message)) {
-      return generateContentJson({ ...options, disableThinking: true });
-    }
-    throw new Error(message);
+    throw new Error(googleErrorMessage(payload, response.status));
   }
 
   const text = payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
@@ -247,14 +237,13 @@ export async function generateAdvisorText(options: {
             "Content-Type": "application/json",
             "x-goog-api-key": options.apiKey,
           },
-          signal: AbortSignal.timeout(12000),
+          signal: AbortSignal.timeout(20000),
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: options.system }] },
             contents,
             generationConfig: {
               temperature: 0.3,
-              maxOutputTokens: 512,
-              thinkingConfig: { thinkingBudget: 0 },
+              maxOutputTokens: 640,
             },
           }),
         }
