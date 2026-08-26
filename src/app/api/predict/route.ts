@@ -140,11 +140,9 @@ export async function POST(req: Request) {
         return NextResponse.json(fromGeminiScan(scan, selectedCategory, source));
       } catch (error) {
         console.warn("AgriSmart AI scan failed:", error);
-        if (!pythonFallbackUrl()) {
-          const message = publicPredictError(error);
-          const statusCode = /Invalid image|could not be read/i.test(message) ? 400 : 503;
-          return NextResponse.json({ error: message }, { status: statusCode });
-        }
+        const message = publicPredictError(error);
+        const statusCode = /Invalid image|could not be read/i.test(message) ? 400 : 503;
+        return NextResponse.json({ error: message }, { status: statusCode });
       }
     }
 

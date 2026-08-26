@@ -1,6 +1,7 @@
 import { looksLikeGeminiApiKey, isPlaceholderSecret } from "@/lib/runtime-config";
 import { pythonFallbackUrl } from "@/lib/gemini-native";
 import { looksLikeGroqApiKey } from "@/lib/groq";
+import { parseCropScanResult } from "@/lib/crop-scan";
 
 describe("Gemini Auth keys", () => {
   const authKey = `AQ.${"Ab12".repeat(13)}`;
@@ -25,6 +26,32 @@ describe("Groq keys", () => {
   });
 });
 
+describe("crop scan JSON", () => {
+  it("accepts messy Groq scan JSON", () => {
+    const scan = parseCropScanResult({
+      crop_category: "Vegetable",
+      detected_crop: "Cassava",
+      disease: "Cassava mosaic",
+      is_healthy: "false",
+      confidence: "87",
+      severity: "moderate",
+      symptoms: "Yellow mosaic on leaves",
+      treatment: {
+        chemical_control: "Remove infected plants",
+        organic_biological: [],
+      },
+    });
+    expect(scan.crop_category).toBe("Unknown");
+    expect(scan.detected_crop).toBe("Cassava");
+    expect(scan.disease_detected).toBe("Cassava mosaic");
+    expect(scan.is_healthy).toBe(false);
+    expect(scan.confidence_score).toBe(0.87);
+    expect(scan.severity_grade).toBe("Moderate");
+    expect(scan.symptoms_observed).toEqual(["Yellow mosaic on leaves"]);
+    expect(scan.treatment.chemical_control).toEqual(["Remove infected plants"]);
+  });
+});
+
 describe("Python predict fallback", () => {
   const original = { ...process.env };
 
@@ -42,5 +69,19 @@ describe("Python predict fallback", () => {
     delete process.env.VERCEL;
     process.env.PREDICTION_API_URL = "https://predict.example.com";
     expect(pythonFallbackUrl()).toBe("https://predict.example.com/predict");
+  });
+
+  it("skips localhost python unless explicitly enabled", () => {
+    delete process.env.VERCEL;
+    delete process.env.USE_LOCAL_PYTHON_PREDICT;
+    process.env.PREDICTION_API_URL = "http://localhost:8000/predict";
+    expect(pythonFallbackUrl()).toBe("");
+  });
+
+  it("keeps localhost python when opted in", () => {
+    delete process.env.VERCEL;
+    process.env.USE_LOCAL_PYTHON_PREDICT = "1";
+    process.env.PREDICTION_API_URL = "http://localhost:8000/predict";
+    expect(pythonFallbackUrl()).toBe("http://localhost:8000/predict");
   });
 });

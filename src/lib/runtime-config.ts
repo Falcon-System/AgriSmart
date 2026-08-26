@@ -333,6 +333,16 @@ export function getGeminiKeyStatus(): GeminiKeyStatus {
   );
 }
 
+export function getEnvSecret(...names: string[]) {
+  const { values } = mergedFileEnv();
+  const pool = { ...process.env, ...values };
+  for (const name of names) {
+    const value = sanitizeSecret(pool[name]);
+    if (value && !isPlaceholderSecret(value)) return value;
+  }
+  return "";
+}
+
 export function getGeminiApiKey() {
   const status = getGeminiKeyStatus();
   if (!status.configured) return "";

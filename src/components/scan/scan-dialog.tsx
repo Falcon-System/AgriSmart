@@ -92,7 +92,12 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
         },
         onError: (error: any) => {
             console.error("Mutation Error:", error);
-            toast.error("Failed to save scan results");
+            const raw = String(error?.message || error || "");
+            toast.error(
+                /mongo|ECONNREFUSED|not connected|topology was destroyed|connect/i.test(raw)
+                    ? "Analysis finished, but MongoDB is not running. Start it with: docker compose up -d"
+                    : "Failed to save scan results. Check that MongoDB is running, then try again."
+            );
             setIsAnalyzing(false);
         },
     });

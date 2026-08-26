@@ -47,7 +47,10 @@ export function pythonFallbackUrl() {
   const base = configured.replace(/\/$/, "");
   const url = base.endsWith("/predict") ? base : `${base}/predict`;
   const isLocal = /localhost|127\.0\.0\.1|::1/i.test(url);
-  if (process.env.VERCEL && isLocal) return "";
+  if (isLocal && process.env.VERCEL) return "";
+  // Default .env.example points at localhost:8000, which is usually not running.
+  // Only use it when the farmer explicitly opts in.
+  if (isLocal && process.env.USE_LOCAL_PYTHON_PREDICT !== "1") return "";
   return url;
 }
 

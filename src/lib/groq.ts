@@ -1,4 +1,5 @@
 import { parseCropScanResult, type CropScanResult } from "@/lib/crop-scan";
+import { getEnvSecret } from "@/lib/runtime-config";
 
 const GROQ_CHAT_MODELS = ["qwen/qwen3.8-27b", "openai/gpt-oss-20b", "openai/gpt-oss-120b"];
 const GROQ_VISION_MODELS = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b"];
@@ -8,7 +9,10 @@ export function looksLikeGroqApiKey(key: string) {
 }
 
 export function getGroqApiKey() {
-  return String(process.env.GROQ_API_KEY || process.env.GROK_API_KEY || "").trim();
+  const key = getEnvSecret("GROQ_API_KEY", "GROK_API_KEY") || String(process.env.GROQ_API_KEY || process.env.GROK_API_KEY || "").trim();
+  if (!key || key.length < 20) return "";
+  process.env.GROQ_API_KEY = key;
+  return key;
 }
 
 export function isGroqConfigured() {
