@@ -116,7 +116,12 @@ export default function ScanResultPage() {
         { title: "Cultural practices", items: scan.treatmentPlan?.cultural_practices },
     ].filter((section) => section.items?.length);
     const hasTreatmentPlan = treatmentPlanSections.length > 0;
-    const engineLabel = scan.source === "gemini" ? "AgriSmart AI" : scan.source === "model" ? "AgriSmart local model" : null;
+    const engineLabel =
+      scan.source === "gemini" || scan.source === "groq"
+        ? "AgriSmart AI"
+        : scan.source === "model"
+          ? "AgriSmart local model"
+          : null;
 
     return (
         <div className="container max-w-6xl py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">

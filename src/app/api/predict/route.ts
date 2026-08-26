@@ -1,17 +1,14 @@
 import { NextResponse } from "next/server";
 import { enrichPrediction, severityToNumber } from "@/lib/diseases";
-import { friendlyGeminiError, getGeminiApiKey, isGeminiConfigured } from "@/lib/runtime-config";
+import { friendlyGeminiError, getGeminiApiKey } from "@/lib/runtime-config";
 import {
   gradeFromSeverity,
   isCassavaCrop,
   joinAdvice,
   type CropScanResult,
 } from "@/lib/crop-scan";
-import {
-  predictCropScanWithGemini,
-  pythonFallbackUrl,
-  vercelGeminiSetupMessage,
-} from "@/lib/gemini-native";
+import { pythonFallbackUrl, vercelGeminiSetupMessage } from "@/lib/gemini-native";
+import { diagnoseCropScan, isAgriAiConfigured } from "@/lib/agri-ai";
 
 export const maxDuration = 60;
 
@@ -63,7 +60,7 @@ async function predictWithPython(imageFile: File) {
   };
 }
 
-function fromGeminiScan(scan: CropScanResult, selectedCategory: string) {
+function fromGeminiScan(scan: CropScanResult, selectedCategory: string, source: "groq" | "gemini" = "gemini") {
   const treatmentPlan = {
     chemical_control: scan.treatment?.chemical_control ?? [],
     organic_biological: scan.treatment?.organic_biological ?? [],
@@ -104,7 +101,7 @@ function fromGeminiScan(scan: CropScanResult, selectedCategory: string) {
     isHealthy: scan.is_healthy,
     severityGrade: scan.severity_grade,
     treatmentPlan,
-    source: "gemini" as const,
+    source,
   };
 }
 
@@ -113,7 +110,7 @@ function publicPredictError(error: unknown) {
   if (/Invalid image|could not be read/i.test(raw)) {
     return raw;
   }
-  if (isGeminiConfigured()) {
+  if (isAgriAiConfigured()) {
     return friendlyGeminiError(error);
   }
   return process.env.VERCEL ? vercelGeminiSetupMessage() : friendlyGeminiError(error);
@@ -129,18 +126,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No image data provided" }, { status: 400 });
     }
 
-    const apiKey = getGeminiApiKey();
-    if (apiKey) {
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY = apiKey;
+    const geminiKey = getGeminiApiKey();
+    if (geminiKey) {
+      process.env.GOOGLE_GENERATIVE_AI_API_KEY = geminiKey;
+    }
+
+    if (isAgriAiConfigured()) {
       try {
-        const scan = await predictCropScanWithGemini({
-          apiKey,
+        const { scan, source } = await diagnoseCropScan({
           image,
           selectedCategory,
         });
-        return NextResponse.json(fromGeminiScan(scan, selectedCategory));
+        return NextResponse.json(fromGeminiScan(scan, selectedCategory, source));
       } catch (error) {
-        console.warn("Gemini structured scan failed:", error);
+        console.warn("AgriSmart AI scan failed:", error);
         if (!pythonFallbackUrl()) {
           const message = publicPredictError(error);
           const statusCode = /Invalid image|could not be read/i.test(message) ? 400 : 503;
@@ -182,8 +181,8 @@ export async function POST(req: Request) {
       }
     }
 
-    const message = apiKey
-      ? publicPredictError(new Error("Gemini scan failed"))
+    const message = isAgriAiConfigured()
+      ? publicPredictError(new Error("AgriSmart AI scan failed"))
       : process.env.VERCEL
         ? vercelGeminiSetupMessage()
         : "AgriSmart AI is not ready yet. Please try again in a moment.";

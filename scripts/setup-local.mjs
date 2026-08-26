@@ -58,8 +58,11 @@ async function main() {
 
   const uri = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017";
   const dbName = process.env.MONGODB_DB || "agrismart_local";
+  const groqKey = process.env.GROQ_API_KEY || process.env.GROK_API_KEY;
+  const groqReady = Boolean(groqKey) && groqKey.length >= 20 && !/placeholder|changeme|your-/i.test(groqKey);
   const geminiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY || process.env.GEMINI_API_KEY;
   const geminiReady = !isPlaceholderSecret(geminiKey);
+  const aiReady = groqReady || geminiReady;
 
   let mongoOk = false;
   try {
@@ -93,11 +96,21 @@ async function main() {
     }
   }
 
-  if (geminiReady) {
-    console.log("Gemini key is set in .env.local.");
+  if (aiReady) {
+    console.log(
+      groqReady
+        ? "AgriSmart AI key is set (Groq first, Gemini fallback if present)."
+        : "Gemini key is set in .env.local."
+    );
   } else {
     console.log(`
-Gemini key is not set yet.
+AgriSmart AI key is not set yet.
+Preferred: Groq first
+1. Open https://console.groq.com/keys
+2. Create an API key
+3. Put it in .env.local as:
+   GROQ_API_KEY="gsk_..."
+Backup: Google AI Studio
 1. Open https://aistudio.google.com/apikey
 2. Create an API key
 3. Put it in .env.local as:
@@ -110,7 +123,7 @@ Gemini key is not set yet.
   console.log(`
 Local checklist
 - MongoDB: ready
-- Gemini: ${geminiReady ? "ready" : "add your key, stop pnpm dev, then start it again"}
+- AgriSmart AI: ${aiReady ? "ready" : "add a Groq or Gemini key, stop pnpm dev, then start it again"}
 - App: pnpm dev → http://localhost:3001
 - Login: farmer / FarmDemo123
 - Status: http://localhost:3001/api/health

@@ -36,6 +36,7 @@ export default function SettingsPage() {
       if (!response.ok) throw new Error("Could not load setup status");
       return response.json() as Promise<{
         mongo: { connected: boolean; database?: string };
+        groq?: { configured?: boolean };
         gemini: { configured: boolean; hint?: string; googleAccepted?: boolean };
       }>;
     },
@@ -192,7 +193,11 @@ export default function SettingsPage() {
           />
           <SetupStatusRow
             title="AgriSmart AI"
-            ok={healthQuery.data?.gemini.googleAccepted ?? healthQuery.data?.gemini.configured}
+            ok={
+              healthQuery.data?.groq?.configured ||
+              healthQuery.data?.gemini.googleAccepted ||
+              healthQuery.data?.gemini.configured
+            }
             loading={healthQuery.isLoading}
             readyText="AgriSmart AI is ready for scans and Ask AI."
             missingText="AgriSmart AI is not ready yet. Please try again in a moment."
@@ -203,7 +208,7 @@ export default function SettingsPage() {
               id="geminiKey"
               type="password"
               autoComplete="off"
-              placeholder="AQ.... or AIza..."
+              placeholder="gsk_... or AIza..."
               value={geminiKey}
               onChange={(e) => setGeminiKey(e.target.value)}
             />
@@ -212,7 +217,7 @@ export default function SettingsPage() {
               Save AgriSmart AI key
             </Button>
             <p className="text-xs text-muted-foreground">
-              Create a key at aistudio.google.com/apikey. On your computer this writes .env.local. On Vercel, paste the same key, then Redeploy.
+              Paste a Groq key first (console.groq.com/keys). Google AI Studio is the backup if Groq is down. On your computer this writes .env.local. On Vercel, add GROQ_API_KEY, then Redeploy.
             </p>
           </div>
         </CardContent>

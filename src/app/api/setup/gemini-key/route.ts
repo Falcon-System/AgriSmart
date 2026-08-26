@@ -2,6 +2,7 @@ import { existsSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { NextResponse } from "next/server";
 import { getGeminiApiKey, getGeminiKeyStatus, isPlaceholderSecret } from "@/lib/runtime-config";
+import { isGroqConfigured, looksLikeGroqApiKey } from "@/lib/groq";
 
 function isLocalHost(req: Request) {
   const host = (req.headers.get("host") || "").split(":")[0];
@@ -21,7 +22,8 @@ function extractKey(value: string) {
     .trim()
     .replace(/^["']|["']$/g, "")
     .replace(/\s+/g, "");
-  return compact.match(/AQ\.[A-Za-z0-9._\-]{20,}/)?.[0]
+  return compact.match(/gsk_[A-Za-z0-9]{20,}/)?.[0]
+    || compact.match(/AQ\.[A-Za-z0-9._\-]{20,}/)?.[0]
     || compact.match(/AIza[0-9A-Za-z_\-]{20,}/)?.[0]
     || compact;
 }
@@ -41,6 +43,25 @@ function upsertEnvLocal(updates: Record<string, string>) {
   }
 
   writeFileSync(filePath, text.endsWith("\n") ? text : `${text}\n`, { encoding: "utf8" });
+}
+
+async function verifyGroqKey(key: string) {
+  const response = await fetch("https://api.groq.com/openai/v1/models", {
+    headers: { Authorization: `Bearer ${key}` },
+    signal: AbortSignal.timeout(12000),
+  });
+  if (response.ok) return { ok: true as const };
+  const body = await response.text();
+  if (/invalid.?api.?key|unauthorized|401/i.test(body) || response.status === 401) {
+    return {
+      ok: false as const,
+      error: "This AgriSmart AI key was rejected. Create a new Groq key at https://console.groq.com/keys.",
+    };
+  }
+  return {
+    ok: false as const,
+    error: "Groq did not accept this key. Check the key at https://console.groq.com/keys and try again.",
+  };
 }
 
 async function verifyGeminiKey(key: string) {
@@ -72,9 +93,25 @@ export async function POST(req: Request) {
 
   if (!key || isPlaceholderSecret(key)) {
     return NextResponse.json(
-      { error: "Paste a real Google AI Studio key. Create one at https://aistudio.google.com/apikey" },
+      { error: "Paste a Groq key (gsk_...) or a Google AI Studio key." },
       { status: 400 }
     );
+  }
+
+  if (looksLikeGroqApiKey(key)) {
+    const verified = await verifyGroqKey(key);
+    if (!verified.ok) {
+      return NextResponse.json({ error: verified.error }, { status: 400 });
+    }
+
+    upsertEnvLocal({ GROQ_API_KEY: key });
+    process.env.GROQ_API_KEY = key;
+
+    return NextResponse.json({
+      ok: isGroqConfigured(),
+      groq: { configured: isGroqConfigured() },
+      gemini: getGeminiKeyStatus(),
+    });
   }
 
   const verified = await verifyGeminiKey(key);
@@ -92,7 +129,8 @@ export async function POST(req: Request) {
   process.env.GOOGLE_API_KEY = process.env.GOOGLE_API_KEY || key;
 
   return NextResponse.json({
-    ok: Boolean(getGeminiApiKey()),
+    ok: Boolean(getGeminiApiKey()) || isGroqConfigured(),
+    groq: { configured: isGroqConfigured() },
     gemini: getGeminiKeyStatus(),
   });
 }

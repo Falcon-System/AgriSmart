@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { friendlyGeminiError, getGeminiApiKey, isGeminiConfigured } from "@/lib/runtime-config";
-import { generateAdvisorText } from "@/lib/gemini-native";
+import { friendlyGeminiError } from "@/lib/runtime-config";
+import { answerAdvisorQuestion, isAgriAiConfigured } from "@/lib/agri-ai";
 import {
   buildAdvisorSystemPrompt,
   loadScanForAdvisor,
@@ -47,7 +47,7 @@ function uiMessageStream(text: string) {
 }
 
 export async function POST(req: Request) {
-  if (!isGeminiConfigured()) {
+  if (!isAgriAiConfigured()) {
     return NextResponse.json(
       {
         error: "AgriSmart AI is not ready yet. Please try again in a moment.",
@@ -56,7 +56,6 @@ export async function POST(req: Request) {
     );
   }
 
-  const apiKey = getGeminiApiKey();
   const body = (await req.json()) as Record<string, unknown>;
   const messages = ((body.messages as ChatMessage[]) || []);
   const scanId = readScanIdFromBody(body);
@@ -72,14 +71,13 @@ export async function POST(req: Request) {
   }
 
   try {
-    const text = await generateAdvisorText({
-      apiKey,
+    const text = await answerAdvisorQuestion({
       system: buildAdvisorSystemPrompt(scan),
       messages: turns,
     });
     return uiMessageStream(text);
   } catch (error) {
-    console.error("Ask AI Gemini error", error);
+    console.error("Ask AI error", error);
     return NextResponse.json({ error: friendlyGeminiError(error) }, { status: 502 });
   }
 }

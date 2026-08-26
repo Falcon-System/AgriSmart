@@ -78,11 +78,16 @@ function ChatPageInner() {
     queryFn: async () => {
       const response = await fetch("/api/health");
       if (!response.ok) throw new Error("Could not load setup status");
-      return response.json() as Promise<{ gemini: { configured: boolean; hint?: string; googleAccepted?: boolean } }>;
+      return response.json() as Promise<{
+        groq?: { configured?: boolean };
+        gemini: { configured: boolean; hint?: string; googleAccepted?: boolean };
+      }>;
     },
   });
   const geminiReady =
-    healthQuery.data?.gemini.googleAccepted ?? healthQuery.data?.gemini.configured !== false;
+    healthQuery.data?.groq?.configured ||
+    healthQuery.data?.gemini.googleAccepted ||
+    healthQuery.data?.gemini.configured !== false;
   const scans = (scansQuery.data ?? []) as Array<Record<string, unknown>>;
   const selectedScan = scans.find((scan) => scan.id === scanId) ?? null;
 

@@ -8,22 +8,31 @@ const key = String(process.argv[2] || "")
   .replace(/^["']|["']$/g, "")
   .replace(/\s+/g, "");
 
-const extracted = key.match(/AIza[0-9A-Za-z_\-]{20,}/)?.[0] || key;
+const extracted =
+  key.match(/gsk_[A-Za-z0-9]{20,}/)?.[0] ||
+  key.match(/AIza[0-9A-Za-z_\-]{20,}/)?.[0] ||
+  key;
 
 if (!extracted || extracted.length < 20 || /your-google-api-key|placeholder|changeme/i.test(extracted)) {
-  console.error(`Usage: pnpm set:gemini-key AIzaYourKeyFromGoogleAIStudio
+  console.error(`Usage:
+  pnpm set:gemini-key gsk_YourGroqKey
+  pnpm set:gemini-key AIzaYourKeyFromGoogleAIStudio
 
-Create a key at https://aistudio.google.com/apikey
+Groq (used first): https://console.groq.com/keys
+Google backup: https://aistudio.google.com/apikey
 Do not put the key on a second line. Pass it as one argument.`);
   process.exit(1);
 }
 
 const filePath = join(process.cwd(), ".env.local");
 let text = existsSync(filePath) ? readFileSync(filePath, "utf8").replace(/^\uFEFF/, "") : "";
-const updates = {
-  GOOGLE_GENERATIVE_AI_API_KEY: extracted,
-  GEMINI_API_KEY: extracted,
-};
+const isGroq = /^gsk_[A-Za-z0-9]{20,}$/.test(extracted);
+const updates = isGroq
+  ? { GROQ_API_KEY: extracted }
+  : {
+      GOOGLE_GENERATIVE_AI_API_KEY: extracted,
+      GEMINI_API_KEY: extracted,
+    };
 
 for (const [name, value] of Object.entries(updates)) {
   const line = `${name}="${value}"`;
@@ -33,5 +42,5 @@ for (const [name, value] of Object.entries(updates)) {
 }
 
 writeFileSync(filePath, text.endsWith("\n") ? text : `${text}\n`, { encoding: "utf8" });
-console.log(`Wrote UTF-8 Gemini key to ${filePath}`);
+console.log(`Wrote UTF-8 ${isGroq ? "Groq" : "Gemini"} key to ${filePath}`);
 console.log("Restart the app with: pnpm dev:clean");
