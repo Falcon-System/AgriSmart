@@ -32,7 +32,7 @@ export function CameraScanner({ onScanComplete, hideResult }: CameraScannerProps
     const [cameraActive, setCameraActive] = useState(false);
 
     const videoConstraints = {
-        width: { ideal: 1280 },
+        width: { ideal: 960 },
         height: { ideal: 720 },
         facingMode: { ideal: "environment" },
     };
@@ -256,8 +256,8 @@ export function CameraScanner({ onScanComplete, hideResult }: CameraScannerProps
                             audio={false}
                             ref={webcamRef}
                             screenshotFormat="image/jpeg"
-                            screenshotQuality={0.85}
-                            forceScreenshotSourceSize
+                            screenshotQuality={0.72}
+                            minScreenshotWidth={768}
                             playsInline
                             videoConstraints={videoConstraints}
                             onUserMediaError={() => setError("Unable to access camera. Please check permissions.")}

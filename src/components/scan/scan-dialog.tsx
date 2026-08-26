@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { CameraScanner } from "@/components/scan/camera-scanner";
 import { orpc, client } from "@/utils/orpc";
 import { CROP_CATEGORIES } from "@/lib/crop-scan";
-import { prepareLeafImage } from "@/lib/image-file";
+import { prepareLeafImage, resizeImageDataUrl } from "@/lib/image-file";
 import {
     Select,
     SelectContent,
@@ -136,21 +136,21 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
         setIsAnalyzing(true);
         setAnalysisError(null);
         try {
+            const preparedImage = await resizeImageDataUrl(image);
+            if (preparedImage !== image) setImage(preparedImage);
             const response = await fetch("/api/predict", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ image, cropCategory }),
+                body: JSON.stringify({ image: preparedImage, cropCategory }),
             });
 
             const data = await response.json();
 
             if (!response.ok) throw new Error(data.error || "Analysis failed");
 
-            console.log("AI Prediction Data:", data);
-
             createMutation.mutate({
                 fieldId: null,
-                imageUrl: image,
+                imageUrl: preparedImage,
                 disease: data.disease || "Unknown",
                 severity: typeof data.severity === 'number' ? data.severity : 50,
                 confidence: typeof data.confidence === 'number' ? data.confidence : 0,
@@ -328,7 +328,7 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                                                 <Sparkles className="absolute -top-1 -right-1 size-6 text-yellow-400 animate-pulse" />
                                             </div>
                                             <h3 className="text-2xl font-black mb-2 tracking-tight">Analyzing with AgriSmart...</h3>
-                                            <p className="text-sm text-zinc-300">Reading the leaf image and preparing a crop health report</p>
+                                            <p className="text-sm text-zinc-300">This usually takes a few seconds</p>
                                             <div className="absolute left-0 right-0 h-1 bg-primary/50 shadow-[0_0_15px_rgba(var(--primary),1)] animate-scan-line top-0" />
                                         </div>
                                     )}

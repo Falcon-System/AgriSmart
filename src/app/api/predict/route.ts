@@ -13,7 +13,7 @@ import {
   vercelGeminiSetupMessage,
 } from "@/lib/gemini-native";
 
-export const maxDuration = 60;
+export const maxDuration = 30;
 
 async function predictWithPython(imageFile: File) {
   const endpoint = pythonFallbackUrl();
