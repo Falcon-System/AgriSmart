@@ -369,8 +369,8 @@ export function friendlyGeminiError(error: unknown) {
   if (/Fetch|ENOTFOUND|ECONNREFUSED|network|Failed to fetch/i.test(message)) {
     return "Could not reach Gemini. Check your internet connection and try again.";
   }
-  if (/model|not found|404/i.test(message)) {
-    return "This Gemini model is not enabled for your key. Open Google AI Studio and enable the Gemini API.";
+  if (/NOT_FOUND|is not found|not supported for this|model .*not (found|supported|available|enabled)/i.test(message)) {
+    return "Gemini could not use this model for your key. Try Ask AI again after a refresh.";
   }
   return message.replace(/GOOGLE_GENERATIVE_AI_API_KEY|GEMINI_API_KEY/g, "API key") ||
     "Could not get an answer from Gemini. Try again.";

@@ -220,6 +220,69 @@ Return JSON only.`;
   throw new Error(friendlyGeminiError(lastError));
 }
 
+type AdvisorTurn = { role: "user" | "model"; text: string };
+
+export async function generateAdvisorText(options: {
+  apiKey: string;
+  system: string;
+  messages: AdvisorTurn[];
+}) {
+  const contents = options.messages
+    .map((message) => ({
+      role: message.role,
+      parts: [{ text: message.text }],
+    }))
+    .filter((message) => message.parts[0].text.trim());
+
+  if (contents.length === 0) {
+    throw new Error("Ask a crop question first.");
+  }
+
+  let lastError: unknown;
+  for (const modelId of GEMINI_MODELS) {
+    try {
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${modelId}:generateContent`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": options.apiKey,
+          },
+          signal: AbortSignal.timeout(25000),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: options.system }] },
+            contents,
+            generationConfig: { temperature: 0.4 },
+          }),
+        }
+      );
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            error?: { message?: string; status?: string };
+            candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+          }
+        | null;
+      if (!response.ok) {
+        throw new Error(googleErrorMessage(payload, response.status));
+      }
+      const text =
+        payload?.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
+      if (!text.trim()) {
+        throw new Error("Gemini returned an empty answer.");
+      }
+      return text.trim();
+    } catch (error) {
+      lastError = error;
+      if (isInvalidGeminiKeyError(error)) {
+        throw new Error(friendlyGeminiError(error));
+      }
+    }
+  }
+
+  throw new Error(friendlyGeminiError(lastError));
+}
+
 export function vercelGeminiSetupMessage() {
   return "Leaf scan uses Gemini Vision on Vercel. Set GEMINI_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY in Vercel to the same Auth key from https://aistudio.google.com/apikey, then Redeploy. The local Python predictor is not available on Vercel.";
 }
