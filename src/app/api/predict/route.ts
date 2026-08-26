@@ -109,8 +109,9 @@ function fromGeminiScan(scan: CropScanResult, selectedCategory: string) {
 }
 
 function publicPredictError(error: unknown) {
-  if (error instanceof Error && error.message.includes("Invalid image")) {
-    return error.message;
+  const raw = error instanceof Error ? error.message : String(error || "");
+  if (/Invalid image|could not be read/i.test(raw)) {
+    return raw;
   }
   if (isGeminiConfigured()) {
     return friendlyGeminiError(error);
@@ -142,7 +143,7 @@ export async function POST(req: Request) {
         console.warn("Gemini structured scan failed:", error);
         if (!pythonFallbackUrl()) {
           const message = publicPredictError(error);
-          const statusCode = message.includes("Invalid image") ? 400 : 503;
+          const statusCode = /Invalid image|could not be read/i.test(message) ? 400 : 503;
           return NextResponse.json({ error: message }, { status: statusCode });
         }
       }

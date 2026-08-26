@@ -135,7 +135,7 @@ async function generateContentJson(options: {
         "Content-Type": "application/json",
         "x-goog-api-key": options.apiKey,
       },
-      signal: AbortSignal.timeout(25000),
+      signal: AbortSignal.timeout(40000),
       body: JSON.stringify({
         contents: [
           {
@@ -201,6 +201,10 @@ Return JSON only with: crop, disease or Healthy, confidence 0-1, severity, 2-3 s
       lastError = error;
       if (isInvalidGeminiKeyError(error)) {
         throw new Error(friendlyGeminiError(error));
+      }
+      const message = error instanceof Error ? error.message : String(error || "");
+      if (/Unable to process input image/i.test(message)) {
+        throw new Error("That photo could not be read. Take the picture again in good light and retry.");
       }
     }
   }
