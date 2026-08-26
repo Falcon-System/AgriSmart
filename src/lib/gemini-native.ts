@@ -1,7 +1,7 @@
 import { parseCropScanResult, type CropScanResult } from "@/lib/crop-scan";
-import { friendlyGeminiError } from "@/lib/runtime-config";
+import { friendlyGeminiError, isOverloadGeminiError } from "@/lib/runtime-config";
 
-const GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"];
+const GEMINI_MODELS = ["gemini-2.0-flash", "gemini-2.5-flash", "gemini-flash-latest"];
 
 const CROP_SCAN_SCHEMA = {
   type: "OBJECT",
@@ -205,6 +205,9 @@ Return JSON only with: crop, disease or Healthy, confidence 0-1, severity, 2-3 s
       const message = error instanceof Error ? error.message : String(error || "");
       if (/Unable to process input image/i.test(message)) {
         throw new Error("That photo could not be read. Take the picture again in good light and retry.");
+      }
+      if (isOverloadGeminiError(error)) {
+        await new Promise((resolve) => setTimeout(resolve, 1200));
       }
     }
   }

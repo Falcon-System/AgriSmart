@@ -354,14 +354,19 @@ export function isGeminiConfigured() {
   return getGeminiKeyStatus().configured;
 }
 
+export function isOverloadGeminiError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  return /UNAVAILABLE|high demand|overloaded|try again later|503/i.test(message);
+}
+
 export function friendlyGeminiError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "");
 
   if (/API_KEY_INVALID|API key not valid|invalid api key|API key not found|invalid authentication|UNAUTHENTICATED/i.test(message)) {
     return "AgriSmart AI is not available right now. Please try again in a moment.";
   }
-  if (/quota|RESOURCE_EXHAUSTED|429|rate.?limit/i.test(message)) {
-    return "AgriSmart AI is busy. Wait a minute and try again.";
+  if (/quota|RESOURCE_EXHAUSTED|429|rate.?limit|UNAVAILABLE|high demand|overloaded/i.test(message)) {
+    return "AgriSmart AI is busy right now. Wait a minute, then tap Try Analysis Again.";
   }
   if (/aborted|timeout|AbortError|UND_ERR_CONNECT_TIMEOUT/i.test(message)) {
     return "AgriSmart AI did not respond in time. Try the scan again.";
@@ -373,5 +378,8 @@ export function friendlyGeminiError(error: unknown) {
     return "AgriSmart AI could not complete that request. Refresh and try again.";
   }
   const cleaned = message.replace(/GOOGLE_GENERATIVE_AI_API_KEY|GEMINI_API_KEY/g, "API key").replace(/Gemini/gi, "AgriSmart AI");
+  if (/UNAVAILABLE|high demand/i.test(cleaned)) {
+    return "AgriSmart AI is busy right now. Wait a minute, then tap Try Analysis Again.";
+  }
   return cleaned || "Could not get an answer from AgriSmart AI. Try again.";
 }
