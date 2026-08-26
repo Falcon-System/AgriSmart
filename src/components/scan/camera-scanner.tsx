@@ -32,10 +32,14 @@ export function CameraScanner({ onScanComplete, hideResult }: CameraScannerProps
     const [cameraActive, setCameraActive] = useState(false);
 
     const videoConstraints = {
-        width: 1280,
-        height: 720,
-        facingMode: "environment"
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        facingMode: { ideal: "environment" },
     };
+
+    useEffect(() => {
+        setCameraActive(true);
+    }, []);
 
     const startCamera = useCallback(() => {
         setCameraActive(true);
@@ -244,14 +248,17 @@ export function CameraScanner({ onScanComplete, hideResult }: CameraScannerProps
 
     // Show camera view or start options
     return (
-        <div className="flex flex-col h-full bg-background">
+        <div className="flex flex-col h-full min-h-0 bg-background">
             {cameraActive ? (
                 <>
-                    <div className="flex-1 relative bg-black flex items-center justify-center">
+                    <div className="flex-1 relative bg-black flex items-center justify-center min-h-0 overflow-hidden">
                         <Webcam
                             audio={false}
                             ref={webcamRef}
                             screenshotFormat="image/jpeg"
+                            screenshotQuality={0.85}
+                            forceScreenshotSourceSize
+                            playsInline
                             videoConstraints={videoConstraints}
                             onUserMediaError={() => setError("Unable to access camera. Please check permissions.")}
                             className="w-full h-full object-cover"
@@ -275,15 +282,18 @@ export function CameraScanner({ onScanComplete, hideResult }: CameraScannerProps
                         </Button>
                     </div>
 
-                    <div className="p-6 bg-background border-t">
-                        <div className="flex items-center justify-center">
+                    <div className="p-4 bg-background border-t shrink-0">
+                        <div className="flex flex-col items-center justify-center gap-2">
                             <Button
+                                type="button"
                                 size="icon"
-                                className="size-20 rounded-full shadow-2xl shadow-primary/40 ring-4 ring-background transition-transform active:scale-90"
+                                aria-label="Take photo"
+                                className="size-16 rounded-full shadow-2xl shadow-primary/40 ring-4 ring-background transition-transform active:scale-90"
                                 onClick={captureImage}
                             >
-                                <Camera className="size-8" />
+                                <Camera className="size-7" />
                             </Button>
+                            <p className="text-xs font-medium text-muted-foreground">Tap to take photo</p>
                         </div>
                     </div>
                 </>
