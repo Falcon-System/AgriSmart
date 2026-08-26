@@ -1,6 +1,6 @@
 import { parseCropScanResult, type CropScanResult } from "@/lib/crop-scan";
 
-const GROQ_CHAT_MODELS = ["openai/gpt-oss-20b", "qwen/qwen3.8-27b", "openai/gpt-oss-120b"];
+const GROQ_CHAT_MODELS = ["qwen/qwen3.8-27b", "openai/gpt-oss-20b", "openai/gpt-oss-120b"];
 const GROQ_VISION_MODELS = ["qwen/qwen3.8-27b", "qwen/qwen3.6-27b"];
 
 export function looksLikeGroqApiKey(key: string) {
@@ -139,6 +139,7 @@ export async function generateAdvisorTextWithGroq(options: {
         apiKey: options.apiKey,
         model,
         timeoutMs: 15000,
+        maxTokens: 800,
         messages,
       });
     } catch (error) {
