@@ -211,7 +211,7 @@ function inspectCandidate(name: string, value: string, source: string): Omit<Gem
       source,
       keyLength: key.length,
       looksLikeGoogleKey: true,
-      hint: "Gemini key is loaded.",
+      hint: "AgriSmart AI is ready.",
     };
   }
 
@@ -233,7 +233,7 @@ function inspectCandidate(name: string, value: string, source: string): Omit<Gem
       source,
       keyLength: key.length,
       looksLikeGoogleKey: false,
-      hint: "The Gemini key looks too short. Paste the full key from https://aistudio.google.com/apikey",
+      hint: "The AgriSmart AI key looks too short. Ask your administrator to update it.",
     };
   }
 
@@ -243,7 +243,7 @@ function inspectCandidate(name: string, value: string, source: string): Omit<Gem
     source,
     keyLength: key.length,
     looksLikeGoogleKey: false,
-      hint: "A key is loaded, but it does not look like a Gemini Auth key (AQ....) or Studio key (AIza...). If scans fail, create a new key at https://aistudio.google.com/apikey.",
+      hint: "AgriSmart AI is not ready yet. Please try a scan again in a moment.",
   };
 }
 
@@ -358,20 +358,20 @@ export function friendlyGeminiError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error || "");
 
   if (/API_KEY_INVALID|API key not valid|invalid api key|API key not found|invalid authentication|UNAUTHENTICATED/i.test(message)) {
-    return "Google rejected this API key. Create a Gemini Auth key at https://aistudio.google.com/apikey (it starts with AQ.), set GEMINI_API_KEY in Vercel, then Redeploy. Maps keys and unrestricted Cloud keys will not work.";
+    return "AgriSmart AI is not available right now. Please try again in a moment.";
   }
   if (/quota|RESOURCE_EXHAUSTED|429|rate.?limit/i.test(message)) {
-    return "Gemini is busy or over quota. Wait a minute and try again.";
+    return "AgriSmart AI is busy. Wait a minute and try again.";
   }
   if (/aborted|timeout|AbortError|UND_ERR_CONNECT_TIMEOUT/i.test(message)) {
-    return "Gemini did not respond in time. Check the API key and try the scan again.";
+    return "AgriSmart AI did not respond in time. Try the scan again.";
   }
   if (/Fetch|ENOTFOUND|ECONNREFUSED|network|Failed to fetch/i.test(message)) {
-    return "Could not reach Gemini. Check your internet connection and try again.";
+    return "Could not reach AgriSmart AI. Check your internet connection and try again.";
   }
   if (/NOT_FOUND|is not found|not supported for this|model .*not (found|supported|available|enabled)/i.test(message)) {
-    return "Gemini could not use this model for your key. Try Ask AI again after a refresh.";
+    return "AgriSmart AI could not complete that request. Refresh and try again.";
   }
-  return message.replace(/GOOGLE_GENERATIVE_AI_API_KEY|GEMINI_API_KEY/g, "API key") ||
-    "Could not get an answer from Gemini. Try again.";
+  const cleaned = message.replace(/GOOGLE_GENERATIVE_AI_API_KEY|GEMINI_API_KEY/g, "API key").replace(/Gemini/gi, "AgriSmart AI");
+  return cleaned || "Could not get an answer from AgriSmart AI. Try again.";
 }

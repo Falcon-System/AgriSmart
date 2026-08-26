@@ -107,7 +107,7 @@ export async function probeGeminiKey(apiKey: string) {
         ? {
             accepted: false as const,
             error:
-              "Google rejected this API key. Create a Gemini Auth key at https://aistudio.google.com/apikey (it starts with AQ.), then set GEMINI_API_KEY in Vercel and Redeploy.",
+              "AgriSmart AI could not start. Please try again in a moment.",
           }
         : {
             accepted: false as const,
@@ -284,5 +284,5 @@ export async function generateAdvisorText(options: {
 }
 
 export function vercelGeminiSetupMessage() {
-  return "Leaf scan uses Gemini Vision on Vercel. Set GEMINI_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY in Vercel to the same Auth key from https://aistudio.google.com/apikey, then Redeploy. The local Python predictor is not available on Vercel.";
+  return "AgriSmart AI is not configured for this site yet. Please try again later.";
 }

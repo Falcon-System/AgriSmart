@@ -185,7 +185,7 @@ export async function POST(req: Request) {
       ? publicPredictError(new Error("Gemini scan failed"))
       : process.env.VERCEL
         ? vercelGeminiSetupMessage()
-        : "Gemini is not configured. Add GEMINI_API_KEY to .env.local, or start pnpm predict:server for the local cassava model.";
+        : "AgriSmart AI is not ready yet. Please try again in a moment.";
     return NextResponse.json({ error: message }, { status: 503 });
   } catch (error: any) {
     console.error("API Route Error:", error);

@@ -53,7 +53,7 @@ async function verifyGeminiKey(key: string) {
     return {
       ok: false as const,
       error:
-        "Google rejected this key. Create a new Gemini Auth key at https://aistudio.google.com/apikey and restrict it to the Gemini API.",
+        "This AgriSmart AI key was rejected. Try a new key from aistudio.google.com/apikey.",
     };
   }
   return {
@@ -64,7 +64,7 @@ async function verifyGeminiKey(key: string) {
 
 export async function POST(req: Request) {
   if (!isLocalHost(req)) {
-    return NextResponse.json({ error: "Gemini key setup is only allowed on your local computer." }, { status: 403 });
+    return NextResponse.json({ error: "AgriSmart AI key setup is only allowed on your local computer." }, { status: 403 });
   }
 
   const body = (await req.json().catch(() => ({}))) as { key?: string };

@@ -29,12 +29,13 @@ const SCAN_SUGGESTIONS = [
 
 function farmerFacingText(text: string) {
   if (/API[_ ]?key not valid|API_KEY_INVALID|GOOGLE_GENERATIVE_AI|GEMINI_API_KEY/i.test(text)) {
-    return "Google rejected this API key. Create a new Gemini Auth key at aistudio.google.com/apikey, restrict it to the Gemini API, then save it in Vercel and Redeploy.";
+    return "AgriSmart AI is not available right now. Please try again in a moment.";
   }
   if (/model is not enabled|enable the Gemini API/i.test(text)) {
-    return "Ask AI is retrying Gemini the same way leaf scans do. Refresh the page and ask again.";
+    return "AgriSmart AI is retrying. Refresh the page and ask again.";
   }
-  return text;
+  return text.replace(/Gemini Vision/gi, "AgriSmart AI").replace(/Gemini/gi, "AgriSmart AI") ||
+    "Could not get an answer. Check your connection and try again.";
 }
 
 function chatErrorMessage(error: unknown) {
@@ -45,7 +46,7 @@ function chatErrorMessage(error: unknown) {
   } catch {
     // The transport may send plain text.
   }
-  return farmerFacingText(raw) || "Could not get an answer. Check your connection, Gemini key, and try again.";
+  return farmerFacingText(raw) || "Could not get an answer. Check your connection and try again.";
 }
 
 function scanLabel(scan: Record<string, unknown> | null | undefined) {
@@ -158,7 +159,7 @@ function ChatPageInner() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Ask AI</h1>
           <p className="text-sm text-muted-foreground">
-            {scan ? "Gemini will use this scan from MongoDB" : "Pick a scan, or ask a crop question"}
+            {scan ? "AgriSmart AI will use this scan" : "Pick a scan, or ask a crop question"}
           </p>
         </div>
         {messages.length > 0 && (
@@ -171,7 +172,7 @@ function ChatPageInner() {
 
       {healthQuery.data && !geminiReady && (
         <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-          Gemini is not ready yet. {healthQuery.data.gemini.hint || "Create a Gemini Auth key at aistudio.google.com/apikey, set GEMINI_API_KEY in Vercel, then Redeploy."}
+          AgriSmart AI is not ready yet. Please try again in a moment.
         </div>
       )}
 

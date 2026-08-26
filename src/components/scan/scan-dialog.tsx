@@ -327,7 +327,7 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                                                 <Loader2 className="size-16 animate-spin text-primary" />
                                                 <Sparkles className="absolute -top-1 -right-1 size-6 text-yellow-400 animate-pulse" />
                                             </div>
-                                            <h3 className="text-2xl font-black mb-2 tracking-tight">Analyzing with Gemini...</h3>
+                                            <h3 className="text-2xl font-black mb-2 tracking-tight">Analyzing with AgriSmart...</h3>
                                             <p className="text-sm text-zinc-300">Reading the leaf image and preparing a crop health report</p>
                                             <div className="absolute left-0 right-0 h-1 bg-primary/50 shadow-[0_0_15px_rgba(var(--primary),1)] animate-scan-line top-0" />
                                         </div>
@@ -364,7 +364,7 @@ export function ScanDialog({ trigger }: { trigger: React.ReactElement }) {
                     <div className="p-3 bg-white dark:bg-zinc-900 border-t flex justify-center shrink-0">
                         <div className="flex items-center gap-2 px-3 py-1 bg-zinc-100 dark:bg-zinc-800 rounded-full text-[10px] font-medium text-muted-foreground">
                             <Scan className="size-3" />
-                            <span>Powered by Gemini Vision</span>
+                            <span>Powered by AgriSmart AI</span>
                         </div>
                     </div>
                 </div>

@@ -116,7 +116,7 @@ export default function ScanResultPage() {
         { title: "Cultural practices", items: scan.treatmentPlan?.cultural_practices },
     ].filter((section) => section.items?.length);
     const hasTreatmentPlan = treatmentPlanSections.length > 0;
-    const engineLabel = scan.source === "gemini" ? "Gemini Vision" : scan.source === "model" ? "Local cassava model" : null;
+    const engineLabel = scan.source === "gemini" ? "AgriSmart AI" : scan.source === "model" ? "AgriSmart local model" : null;
 
     return (
         <div className="container max-w-6xl py-8 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
@@ -351,7 +351,7 @@ export default function ScanResultPage() {
                                 <h4 className="font-bold text-sm uppercase tracking-wider text-muted-foreground">About this disease</h4>
                             </div>
                             <p className="text-sm text-muted-foreground leading-relaxed">
-                                {diseaseData?.recommendation || "This analysis is powered by AgriSmart. Gemini Vision is the launch diagnosis engine; a local cassava classifier is used when no API key is configured. While highly accurate, we recommend consulting with a local agricultural expert for confirmed diagnosis and specific chemical applications."}
+                                {diseaseData?.recommendation || "This analysis is powered by AgriSmart AI. While highly accurate, confirm with a local agricultural expert before applying chemicals."}
                             </p>
                         </CardContent>
                     </Card>

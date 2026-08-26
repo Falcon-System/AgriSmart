@@ -71,14 +71,14 @@ export default function SettingsPage() {
       });
       const payload = (await response.json()) as { error?: string; gemini?: { configured?: boolean; hint?: string } };
       if (!response.ok) {
-        toast.error(payload.error || "Could not save the Gemini key");
+        toast.error(payload.error || "Could not save the AgriSmart AI key");
         return;
       }
       setGeminiKey("");
       await queryClient.invalidateQueries({ queryKey: ["setup-health"] });
-      toast.success("Gemini key saved to .env.local");
+      toast.success("AgriSmart AI key saved");
     } catch {
-      toast.error("Could not save the Gemini key");
+      toast.error("Could not save the AgriSmart AI key");
     } finally {
       setSavingKey(false);
     }
@@ -179,7 +179,7 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle>Local setup</CardTitle>
           <CardDescription>
-            MongoDB and Gemini must be ready before you scan or use Ask AI
+            MongoDB and AgriSmart AI must be ready before you scan or use Ask AI
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -191,14 +191,14 @@ export default function SettingsPage() {
             missingText="Not connected. On your computer run: docker compose up -d"
           />
           <SetupStatusRow
-            title="Google Gemini"
+            title="AgriSmart AI"
             ok={healthQuery.data?.gemini.googleAccepted ?? healthQuery.data?.gemini.configured}
             loading={healthQuery.isLoading}
-            readyText="Google accepted the Gemini key. Scans and Ask AI can use it."
-            missingText={healthQuery.data?.gemini.hint || "Add a Gemini Auth key from aistudio.google.com/apikey in Vercel, then Redeploy."}
+            readyText="AgriSmart AI is ready for scans and Ask AI."
+            missingText="AgriSmart AI is not ready yet. Please try again in a moment."
           />
           <div className="space-y-2 pt-2">
-            <Label htmlFor="geminiKey">Paste Gemini API key</Label>
+            <Label htmlFor="geminiKey">Paste AgriSmart AI key</Label>
             <Input
               id="geminiKey"
               type="password"
@@ -209,10 +209,10 @@ export default function SettingsPage() {
             />
             <Button type="button" onClick={handleSaveGeminiKey} disabled={savingKey || !geminiKey.trim()}>
               {savingKey ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
-              Save Gemini key
+              Save AgriSmart AI key
             </Button>
             <p className="text-xs text-muted-foreground">
-              Create an Auth key at aistudio.google.com/apikey. On your computer this writes .env.local. On Vercel, paste the same key into GEMINI_API_KEY and GOOGLE_GENERATIVE_AI_API_KEY, then Redeploy.
+              Create a key at aistudio.google.com/apikey. On your computer this writes .env.local. On Vercel, paste the same key, then Redeploy.
             </p>
           </div>
         </CardContent>
